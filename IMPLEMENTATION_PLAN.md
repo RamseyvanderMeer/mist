@@ -50,99 +50,99 @@ The enhanced mapping layer will:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Input Layer                                   │
-│  Fault Codes (Text) + OBD Live Data (JSON) + Vehicle Context   │
+│                    Input Layer                                  │
+│  Fault Codes (Text) + OBD Live Data (JSON) + Vehicle Context    │
 └──────────────────────┬──────────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              Multi-Modal Embedding Layer                         │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐    │
-│  │ Fault Code   │  │ OBD Data     │  │ Cross-Attention   │    │
-│  │ Encoder      │  │ Encoder      │  │ Fusion Layer      │    │
-│  │ (E5-Mistral) │  │ (Structured) │  │                   │    │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘    │
+│              Multi-Modal Embedding Layer                        │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────────┐     │
+│  │ Fault Code   │   │ OBD Data     │   │ Cross-Attention  │     │
+│  │ Encoder      │   │ Encoder      │   │ Fusion Layer     │     │
+│  │ (E5-Mistral) │   │ (Structured) │   │                  │     │
+│  └──────┬───────┘   └──────┬───────┘   └────────┬─────────┘     │
 │         │                  │                    │               │
-│         └──────────────────┴────────────────────┘               │
-│                            │                                     │
-│                            ▼                                     │
-│                    Unified Embedding (768-dim)                   │
+│         └───────────────-──┴────────────────────┘               │
+│                            │                                    │
+│                            ▼                                    │
+│                    Unified Embedding (768-dim)                  │
 └────────────────────────────┬────────────────────────────────────┘
-                              │
-                              ▼
+                             │
+                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │              Multi-Stage Retrieval Pipeline                      │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Stage 1: Vector Search (Qdrant)                           │  │
-│  │   - Initial retrieval: Top-K=100                         │  │
-│  │   - Cosine similarity                                    │  │
-│  └──────────────────────┬───────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ Stage 1: Vector Search (Qdrant)                          │    │
+│  │   - Initial retrieval: Top-K=100                         │    │
+│  │   - Cosine similarity                                    │    │
+│  └──────────────────────┬───────────────────────────────────┘    │
 │                         │                                        │
 │                         ▼                                        │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Stage 2: Cross-Encoder Re-ranking (Cohere Rerank 3)     │  │
-│  │   - Re-rank top-K=50                                     │  │
-│  │   - Query-document relevance scoring                     │  │
-│  └──────────────────────┬───────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ Stage 2: Cross-Encoder Re-ranking (Cohere Rerank 3)      │    │
+│  │   - Re-rank top-K=50                                     │    │
+│  │   - Query-document relevance scoring                     │    │
+│  └──────────────────────┬───────────────────────────────────  ┘  │
 │                         │                                        │
 │                         ▼                                        │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Stage 3: Knowledge Graph Filtering                       │  │
-│  │   - Path scoring: Fault → ECU → Diagnostic → Repair      │  │
-│  │   - Relationship weighting                                │  │
-│  └──────────────────────┬───────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ Stage 3: Knowledge Graph Filtering                       │    │
+│  │   - Path scoring: Fault → ECU → Diagnostic → Repair      │    │
+│  │   - Relationship weighting                               │    │
+│  └──────────────────────┬───────────────────────────────────┘    │
 │                         │                                        │
 │                         ▼                                        │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Stage 4: Combined Scoring                                │  │
-│  │   - Embedding similarity (40%)                           │  │
-│  │   - Re-rank score (30%)                                  │  │
-│  │   - KG path score (20%)                                  │  │
-│  │   - Feedback score (10%)                                  │  │
-│  └──────────────────────┬───────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ Stage 4: Combined Scoring                                │    │
+│  │   - Embedding similarity (40%)                           │    │
+│  │   - Re-rank score (30%)                                  │    │
+│  │   - KG path score (20%)                                  │    │
+│  │   - Feedback score (10%)                                 │    │
+│  └──────────────────────┬───────────────────────────────────┘    │
 └──────────────────────────┼──────────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              Ambiguity Detection & Clarification                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Ambiguity Check:                                          │  │
-│  │   - Top score < threshold (0.65)                         │  │
-│  │   - Score variance < threshold (0.02)                    │  │
-│  │   - Missing critical OBD parameters                        │  │
-│  └──────────────────────┬───────────────────────────────────┘  │
-│                         │                                        │
-│         ┌───────────────┴───────────────┐                      │
-│         │                               │                        │
-│         ▼                               ▼                        │
-│  ┌──────────────┐            ┌──────────────────┐             │
-│  │ High         │            │ Low Confidence   │             │
-│  │ Confidence   │            │ → Generate       │             │
-│  │ → Return     │            │ Clarification    │             │
-│  │ Results      │            │ Questions (LLM)  │             │
-│  └──────────────┘            └────────┬─────────┘             │
+│              Ambiguity Detection & Clarification                │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Ambiguity Check:                                         │   │
+│  │   - Top score < threshold (0.65)                         │   │
+│  │   - Score variance < threshold (0.02)                    │   │
+│  │   - Missing critical OBD parameters                      │   │
+│  └──────────────────────┬───────────────────────────────────┘   │
+│                         │                                       │
+│         ┌───────────────┴───────────────┐                       │
+│         │                               │                       │
+│         ▼                               ▼                       │
+│  ┌──────────────┐            ┌──────────────────┐               │
+│  │ High         │            │ Low Confidence   │               │
+│  │ Confidence   │            │ → Generate       │               │
+│  │ → Return     │            │ Clarification    │               │
+│  │ Results      │            │ Questions (LLM)  │               │
+│  └──────────────┘            └────────┬─────────┘               │
 │                                       │                         │
 │                                       ▼                         │
-│                              ┌──────────────────┐              │
-│                              │ User Responses   │              │
-│                              └────────┬─────────┘              │
+│                              ┌──────────────────┐               │
+│                              │ User Responses   │               │
+│                              └────────┬─────────┘               │
 │                                       │                         │
 │                                       ▼                         │
-│                              ┌──────────────────┐              │
-│                              │ Query Expansion  │              │
-│                              │ (LLM-based)      │              │
-│                              └────────┬─────────┘              │
+│                              ┌──────────────────┐               │
+│                              │ Query Expansion  │               │
+│                              │ (LLM-based)      │               │
+│                              └────────┬─────────┘               │
 │                                       │                         │
 │                                       ▼                         │
-│                              ┌──────────────────┐              │
-│                              │ Re-process Query │              │
-│                              └──────────────────┘              │
+│                              ┌──────────────────┐               │
+│                              │ Re-process Query │               │
+│                              └──────────────────┘               │
 └─────────────────────────────────────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Output Layer                                   │
-│  Ranked Repair Guide Recommendations + Confidence Scores          │
+│                    Output Layer                                 │
+│  Ranked Repair Guide Recommendations + Confidence Scores        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

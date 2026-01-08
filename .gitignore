@@ -32,6 +32,7 @@ ENV/
 *.swp
 *.swo
 *~
+.cursor/
 
 # Environment variables
 .env
@@ -50,6 +51,7 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+._*
 
 # Testing
 .pytest_cache/
