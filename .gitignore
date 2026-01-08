@@ -40,6 +40,7 @@ ENV/
 
 # Data files (large databases)
 data/databases/*.sqlite
+data/databases/*.db
 data/vector_store/
 data/embeddings/checkpoints/*.pt
 data/knowledge_graph.graphml
