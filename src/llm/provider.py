@@ -309,6 +309,9 @@ class LLMProviderFactory:
             elif provider_name == "anthropic":
                 from .anthropic_client import AnthropicClient
                 return AnthropicClient(config.get("anthropic", {}))
+            elif provider_name == "gemini":
+                from .gemini_client import GeminiClient
+                return GeminiClient(config.get("gemini", {}))
             elif provider_name == "open_source":
                 from .open_source_client import OpenSourceClient
                 return OpenSourceClient(config.get("open_source", {}))
@@ -325,6 +328,9 @@ class LLMProviderFactory:
                 elif fallback_name == "anthropic":
                     from .anthropic_client import AnthropicClient
                     return AnthropicClient(config.get("anthropic", {}))
+                elif fallback_name == "gemini":
+                    from .gemini_client import GeminiClient
+                    return GeminiClient(config.get("gemini", {}))
                 elif fallback_name == "open_source":
                     from .open_source_client import OpenSourceClient
                     return OpenSourceClient(config.get("open_source", {}))
