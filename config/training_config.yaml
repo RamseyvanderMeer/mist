@@ -1,28 +1,36 @@
 # Training Configuration
+# Hyperparameters and settings for embedding fine-tuning and self-improvement
 
+# Training hyperparameters for contrastive learning
 training:
-  batch_size: 32
-  learning_rate: 1e-5
-  num_epochs: 10
-  warmup_steps: 100
-  weight_decay: 0.01
-  temperature: 0.05  # For contrastive loss
-  gradient_accumulation_steps: 1
+  batch_size: 32  # Batch size for training
+  learning_rate: 1e-5  # Learning rate for optimizer
+  num_epochs: 10  # Number of training epochs
+  warmup_steps: 100  # Learning rate warmup steps
+  weight_decay: 0.01  # L2 regularization weight
+  temperature: 0.05  # Temperature parameter for contrastive loss (InfoNCE)
+  gradient_accumulation_steps: 1  # Accumulate gradients over N steps before update
 
+# Fine-tuning configuration
+# Controls automatic fine-tuning from user feedback
 fine_tuning:
-  enabled: true
-  checkpoint_interval: 1  # Save after each epoch
-  min_feedback_samples: 10  # Minimum samples to start training
-  validation_split: 0.2
-  early_stopping_patience: 3
+  enabled: true  # Enable automatic fine-tuning
+  checkpoint_interval: 1  # Save checkpoint after N epochs (1 = every epoch)
+  min_feedback_samples: 10  # Minimum feedback samples required before training starts
+  validation_split: 0.2  # Fraction of data to use for validation (0.0-1.0)
+  early_stopping_patience: 3  # Stop training if validation loss doesn't improve for N epochs
 
+# Reward model configuration (for RLHF)
+# Neural network that predicts feedback scores from embeddings
 reward_model:
-  input_dim: 768
-  hidden_dim: 512
-  learning_rate: 1e-4
+  input_dim: 768  # Input dimension (embedding size)
+  hidden_dim: 512  # Hidden layer dimension
+  learning_rate: 1e-4  # Learning rate for reward model training
 
+# Active learning configuration
+# Identifies uncertain cases for human review and feedback collection
 active_learning:
-  enabled: true
-  uncertainty_threshold: 0.65
-  batch_size: 10
-  sampling_strategy: uncertainty  # uncertainty, random, diversity
+  enabled: true  # Enable active learning pipeline
+  uncertainty_threshold: 0.65  # Score threshold below which cases are flagged as uncertain
+  batch_size: 10  # Number of uncertain cases to collect per batch
+  sampling_strategy: uncertainty  # Sampling strategy: uncertainty, random, diversity

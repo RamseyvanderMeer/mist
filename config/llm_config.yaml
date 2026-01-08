@@ -1,33 +1,40 @@
 # LLM Provider Configuration
+# Configures LLM providers for clarification questions and query expansion
 
+# Provider selection and fallback order
 providers:
-  primary: openai
-  fallback:
+  primary: openai  # Primary LLM provider to use
+  fallback:  # Fallback providers in order (used if primary fails)
     - anthropic
     - open_source
 
+# OpenAI provider configuration
 openai:
-  model: gpt-4o
-  api_key_env: OPENAI_API_KEY
-  temperature: 0.7
-  max_tokens: 1000
-  timeout: 30
+  model: gpt-4o  # OpenAI model identifier
+  api_key_env: OPENAI_API_KEY  # Environment variable name for API key
+  temperature: 0.7  # Sampling temperature (0.0-2.0)
+  max_tokens: 1000  # Maximum tokens in response
+  timeout: 30  # Request timeout in seconds
 
+# Anthropic (Claude) provider configuration
 anthropic:
-  model: claude-3-5-sonnet-20241022
-  api_key_env: ANTHROPIC_API_KEY
-  temperature: 0.7
-  max_tokens: 1000
-  timeout: 30
+  model: claude-3-5-sonnet-20241022  # Anthropic model identifier
+  api_key_env: ANTHROPIC_API_KEY  # Environment variable name for API key
+  temperature: 0.7  # Sampling temperature (0.0-1.0)
+  max_tokens: 1000  # Maximum tokens in response
+  timeout: 30  # Request timeout in seconds
 
+# Open-source provider configuration (Ollama)
 open_source:
-  provider: ollama
-  model: llama3.1:70b
-  base_url: http://localhost:11434
-  temperature: 0.7
-  max_tokens: 1000
+  provider: ollama  # Local LLM provider (Ollama)
+  model: llama3.1:70b  # Model name/tag in Ollama
+  base_url: http://localhost:11434  # Ollama server URL
+  temperature: 0.7  # Sampling temperature
+  max_tokens: 1000  # Maximum tokens in response
 
+# Prompt templates for LLM tasks
 prompts:
+  # Clarification question generation prompt
   clarification:
     system: |
       You are a diagnostic assistant helping to clarify automotive fault diagnosis.
@@ -48,6 +55,7 @@ prompts:
       
       Generate clarifying questions to improve diagnosis accuracy.
   
+  # Query expansion prompt (for refining queries with user responses)
   query_expansion:
     system: |
       You are a query expansion assistant for automotive diagnostics.

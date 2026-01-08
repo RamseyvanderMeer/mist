@@ -1,36 +1,47 @@
 # Embedding Model Configuration
+# Configures the multi-modal embedding architecture for fault codes and OBD data
 
 models:
+  # Fault code encoder configuration
+  # Uses E5-Mistral-7B-Instruct model with projection to 768 dimensions
   fault_code:
-    model_name: intfloat/e5-mistral-7b-instruct
-    projection_dim: 768
-    max_length: 512
-    device: auto  # auto, cpu, cuda
+    model_name: intfloat/e5-mistral-7b-instruct  # HuggingFace model identifier
+    projection_dim: 768  # Output embedding dimension
+    max_length: 512  # Maximum token length for input text
+    device: auto  # auto, cpu, cuda - device selection for model inference
   
+  # OBD data encoder configuration
+  # Neural network for encoding structured OBD sensor data
   obd_data:
-    input_dim: 128
-    hidden_dim: 256
-    output_dim: 768
-    attention_heads: 8
+    input_dim: 128  # Number of OBD parameters/features
+    hidden_dim: 256  # Hidden layer dimension
+    output_dim: 768  # Output embedding dimension (must match fault_code)
+    attention_heads: 8  # Number of attention heads in transformer layers
   
+  # Multi-modal fusion configuration
+  # Cross-attention mechanism to combine fault code and OBD embeddings
   fusion:
-    type: cross_attention
-    hidden_dim: 768
-    num_heads: 8
-    dropout: 0.1
+    type: cross_attention  # Fusion method: cross_attention
+    hidden_dim: 768  # Hidden dimension for fusion layers
+    num_heads: 8  # Number of attention heads in cross-attention
+    dropout: 0.1  # Dropout rate for regularization
   
+  # Final output dimension after fusion
   output_dimension: 768
 
+# Training hyperparameters for embedding fine-tuning
 training:
-  batch_size: 32
-  learning_rate: 1e-5
-  num_epochs: 10
-  warmup_steps: 100
-  weight_decay: 0.01
-  temperature: 0.05  # For contrastive loss
+  batch_size: 32  # Batch size for training
+  learning_rate: 1e-5  # Learning rate for optimizer
+  num_epochs: 10  # Number of training epochs
+  warmup_steps: 100  # Learning rate warmup steps
+  weight_decay: 0.01  # L2 regularization weight
+  temperature: 0.05  # Temperature parameter for contrastive loss (InfoNCE)
 
+# Fine-tuning configuration
+# Controls when and how embeddings are fine-tuned from feedback
 fine_tuning:
-  enabled: true
-  checkpoint_interval: 1000
-  min_feedback_samples: 100
-  validation_split: 0.2
+  enabled: true  # Enable automatic fine-tuning from feedback
+  checkpoint_interval: 1000  # Save checkpoint every N training steps
+  min_feedback_samples: 100  # Minimum feedback samples required before training
+  validation_split: 0.2  # Fraction of data to use for validation

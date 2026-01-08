@@ -1,43 +1,54 @@
 # Retrieval Configuration
+# Configures the multi-stage retrieval pipeline for repair guide recommendations
 
+# Vector store configuration (Qdrant)
 vector_store:
-  provider: qdrant
-  collection_name: repair_guides_enhanced
-  distance_metric: cosine
-  vector_size: 768
-  url: http://localhost:6333  # Or local file path (e.g., ./data/vector_store)
+  provider: qdrant  # Vector database provider
+  collection_name: repair_guides_enhanced  # Collection name in Qdrant
+  distance_metric: cosine  # Distance metric: cosine, euclidean, dot
+  vector_size: 768  # Embedding dimension (must match embedding output_dimension)
+  url: http://localhost:6333  # Qdrant server URL or local file path (e.g., ./data/vector_store)
 
+# Multi-stage retrieval parameters
 retrieval:
-  initial_k: 100
-  rerank_k: 50
-  final_k: 10
-  min_similarity: 0.5
+  initial_k: 100  # Initial candidates from vector search (Stage 1)
+  rerank_k: 50  # Candidates after re-ranking (Stage 2)
+  final_k: 10  # Final number of recommendations returned (Stage 4)
+  min_similarity: 0.5  # Minimum cosine similarity threshold for initial retrieval
 
 reranking:
-  enabled: true
-  provider: local  # cohere or local
-  model: cross-encoder/ms-marco-MiniLM-L-12-v2  # Local model
-  # For Cohere API:
+  enabled: true  # Enable re-ranking stage in retrieval pipeline
+  provider: local  # cohere or local - reranking provider selection
+  model: cross-encoder/ms-marco-MiniLM-L-12-v2  # Local cross-encoder model (HuggingFace)
+  top_k: 50  # Number of documents to re-rank (from initial_k candidates)
+  
+  # Alternative: Cohere API reranking (requires API key)
+  # Uncomment below and set provider: cohere to use Cohere API:
   # provider: cohere
-  # model: rerank-english-v3.0
-  # api_key_env: COHERE_API_KEY
-  top_k: 50
+  # model: rerank-english-v3.0  # Cohere rerank model
+  # api_key_env: COHERE_API_KEY  # Environment variable name for API key
 
+# Combined ranking weights (must sum to 1.0)
+# Final score = embedding_similarity * embedding_score + rerank_score * rerank_value + ...
 ranking:
-  embedding_similarity: 0.4
-  rerank_score: 0.3
-  kg_path_score: 0.2
-  feedback_score: 0.1
+  embedding_similarity: 0.4  # Weight for vector similarity score
+  rerank_score: 0.3  # Weight for re-ranking score
+  kg_path_score: 0.2  # Weight for knowledge graph path score
+  feedback_score: 0.1  # Weight for historical feedback score
 
+# Knowledge graph configuration
+# Used for path-based scoring and explainability
 knowledge_graph:
-  enabled: true
-  graph_path: data/knowledge_graph.graphml
-  max_path_length: 3
-  min_path_score: 0.3
+  enabled: true  # Enable knowledge graph filtering and scoring
+  graph_path: data/knowledge_graph.graphml  # Path to NetworkX graph file
+  max_path_length: 3  # Maximum path length for fault → repair procedure paths
+  min_path_score: 0.3  # Minimum path score threshold
 
+# Clarification question generation
+# Controls when and how clarification questions are asked
 clarification:
-  enabled: true
-  ambiguity_threshold: 0.65
-  score_variance_threshold: 0.02
-  max_questions: 3
-  max_clarifications_per_session: 3
+  enabled: true  # Enable clarification question generation
+  ambiguity_threshold: 0.65  # Top score threshold below which clarification is triggered
+  score_variance_threshold: 0.02  # Score variance threshold for ambiguity detection
+  max_questions: 3  # Maximum number of clarification questions per query
+  max_clarifications_per_session: 3  # Maximum clarification rounds per session
