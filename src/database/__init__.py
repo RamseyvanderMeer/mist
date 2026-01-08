@@ -22,6 +22,8 @@ from .migrations import (
     create_engine_for_db,
     init_database
 )
+from .connection import DatabaseConnection, create_connection
+from .ista_db import IstaDatabase
 
 # Import paths module for database path resolution
 try:
@@ -94,6 +96,11 @@ __all__ = [
     'get_schema_version',
     'create_engine_for_db',
     'init_database',
+    # Connection management
+    'DatabaseConnection',
+    'create_connection',
+    # ISTA database wrapper
+    'IstaDatabase',
     # Convenience functions
     'get_mist_db_path',
     'get_mist_db_engine',
