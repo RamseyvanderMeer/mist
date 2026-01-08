@@ -481,8 +481,12 @@ def test_multimodal_residual_connections():
     encoder.train()
     
     # Create inputs that require gradients
-    fault_emb = encoder.fault_encoder.encode(fault_codes, normalize=False)
-    obd_emb = encoder.obd_encoder(obd_data)
+    # Note: fault_encoder.encode() uses inference mode, so we need to clone and enable gradients
+    fault_emb_raw = encoder.fault_encoder.encode(fault_codes, normalize=False)
+    fault_emb = fault_emb_raw.clone().detach().requires_grad_(True)
+    
+    obd_emb_raw = encoder.obd_encoder(obd_data)
+    obd_emb = obd_emb_raw.clone().detach().requires_grad_(True)
     
     # Add sequence dimension
     fault_seq = fault_emb.unsqueeze(1)
@@ -551,8 +555,12 @@ def test_multimodal_cross_attention_bidirectional():
     encoder.train()
     
     # Get embeddings
-    fault_emb = encoder.fault_encoder.encode(fault_codes, normalize=False)
-    obd_emb = encoder.obd_encoder(obd_data)
+    # Note: fault_encoder.encode() uses inference mode, so we need to clone and enable gradients
+    fault_emb_raw = encoder.fault_encoder.encode(fault_codes, normalize=False)
+    fault_emb = fault_emb_raw.clone().detach().requires_grad_(True)
+    
+    obd_emb_raw = encoder.obd_encoder(obd_data)
+    obd_emb = obd_emb_raw.clone().detach().requires_grad_(True)
     
     fault_seq = fault_emb.unsqueeze(1)
     obd_seq = obd_emb.unsqueeze(1)

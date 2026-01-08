@@ -69,6 +69,11 @@ class FaultCodeEncoder:
         # Encode
         embeddings = self.model.encode(prefixed_texts, convert_to_tensor=True)
         
+        # Clone embeddings to allow gradient tracking if projection layer is in train mode
+        # This is necessary because sentence-transformers uses inference mode
+        if self.projection.training:
+            embeddings = embeddings.clone().detach().requires_grad_(True)
+        
         # Project to target dimension
         embeddings = self.projection(embeddings)
         
