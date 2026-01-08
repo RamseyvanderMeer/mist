@@ -16,7 +16,7 @@ class FaultCodeEncoder:
     Provides superior semantic understanding compared to standard sentence-transformers.
     """
     
-    def __init__(self, model_name="intfloat/e5-mistral-7b-instruct", device="auto", projection_dim=768):
+    def __init__(self, model_name: str = "intfloat/e5-mistral-7b-instruct", device: str = "auto", projection_dim: int = 768) -> None:
         """
         Initialize fault code encoder.
         
@@ -31,6 +31,9 @@ class FaultCodeEncoder:
         # Determine device
         if device == "auto":
             device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        # Store device as instance variable
+        self.device = device
         
         try:
             self.model = SentenceTransformer(model_name, device=device)
