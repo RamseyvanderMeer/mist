@@ -16,7 +16,7 @@ class OBDDataEncoder(nn.Module):
     Handles temporal patterns if multiple readings available.
     """
     
-    def __init__(self, input_dim=128, hidden_dim=256, output_dim=768):
+    def __init__(self, input_dim=128, hidden_dim=256, output_dim=768, attention_heads=8, config=None):
         """
         Initialize OBD data encoder.
         
@@ -24,8 +24,22 @@ class OBDDataEncoder(nn.Module):
             input_dim: Number of normalized OBD features
             hidden_dim: Hidden layer dimension
             output_dim: Output embedding dimension
+            attention_heads: Number of attention heads
+            config: Optional dict with config values (overrides other params if provided)
         """
         super().__init__()
+        
+        # Load config if provided
+        if config is not None:
+            input_dim = config.get('input_dim', input_dim)
+            hidden_dim = config.get('hidden_dim', hidden_dim)
+            output_dim = config.get('output_dim', output_dim)
+            attention_heads = config.get('attention_heads', attention_heads)
+        
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+        self.attention_heads = attention_heads
         
         # Feature extraction
         self.feature_extractor = nn.Sequential(
@@ -40,7 +54,7 @@ class OBDDataEncoder(nn.Module):
         # Attention mechanism for parameter relationships
         self.attention = nn.MultiheadAttention(
             embed_dim=hidden_dim * 2,
-            num_heads=8,
+            num_heads=attention_heads,
             dropout=0.1,
             batch_first=True
         )
@@ -48,12 +62,41 @@ class OBDDataEncoder(nn.Module):
         # Output projection
         self.output_proj = nn.Linear(hidden_dim * 2, output_dim)
         
+        # Initialize weights
+        self._initialize_weights()
+    
+    def _initialize_weights(self) -> None:
+        """
+        Initialize network weights using Xavier uniform initialization.
+        This ensures proper weight initialization for training stability.
+        """
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                # Xavier uniform initialization for Linear layers
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0.0)
+            elif isinstance(module, nn.MultiheadAttention):
+                # Initialize attention weights
+                if hasattr(module, 'in_proj_weight') and module.in_proj_weight is not None:
+                    nn.init.xavier_uniform_(module.in_proj_weight)
+                if hasattr(module, 'out_proj') and module.out_proj.weight is not None:
+                    nn.init.xavier_uniform_(module.out_proj.weight)
+        
     def normalize_obd_data(self, obd_data: Union[Dict, List[Dict]]) -> torch.Tensor:
         """
         Normalize OBD parameters to fixed-size feature vector.
         
+        Handles both single readings and temporal sequences:
+        - Single dict: Single OBD reading at one time point
+        - List of dicts: Multiple readings (batch processing or temporal sequence)
+          When multiple readings are provided, each is normalized independently.
+          For temporal pattern analysis, consider aggregating readings before encoding
+          or using sequence-aware processing in downstream components.
+        
         Args:
             obd_data: Dict or list of dicts with OBD parameters
+                     Each dict contains OBD parameter names as keys and values
         
         Returns:
             torch.Tensor: Normalized feature tensor (batch_size, input_dim)
@@ -108,13 +151,26 @@ class OBDDataEncoder(nn.Module):
     
     def forward(self, obd_data: Union[Dict, List[Dict]]) -> torch.Tensor:
         """
-        Encode OBD data.
+        Encode OBD data into embeddings.
+        
+        Processes single readings or batches of readings. When multiple readings
+        are provided (as a list of dicts), each reading is encoded independently.
+        The attention mechanism captures relationships between OBD parameters
+        within each reading.
+        
+        For temporal sequences (multiple readings over time), each time step
+        is encoded separately. To capture temporal patterns, consider:
+        - Pre-aggregating readings (mean, max, etc.) before encoding
+        - Using sequence-aware models downstream
+        - Processing temporal sequences with specialized temporal encoders
         
         Args:
             obd_data: Dict or list of dicts with OBD parameters
+                     - Single dict: One OBD reading
+                     - List of dicts: Batch of readings or temporal sequence
         
         Returns:
-            torch.Tensor: (batch_size, output_dim) embeddings
+            torch.Tensor: (batch_size, output_dim) embeddings with L2 normalization
         """
         # Normalize OBD parameters
         features = self.normalize_obd_data(obd_data)
