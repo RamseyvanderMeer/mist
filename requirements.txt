@@ -3,6 +3,10 @@ sentence-transformers>=2.2.0
 torch>=2.0.0
 transformers>=4.30.0
 qdrant-client>=1.7.0
+huggingface-hub>=0.16.0
+
+# RLHF & Training (for self-improvement mechanisms)
+trl>=0.7.0  # Transformer Reinforcement Learning for RLHF
 
 # LLM Providers
 openai>=1.0.0
@@ -23,14 +27,22 @@ networkx>=3.0
 fastapi>=0.100.0
 uvicorn>=0.23.0
 pydantic>=2.0.0
+httpx>=0.24.0  # Modern async HTTP client
 
 # Data Processing
 pandas>=2.0.0
 numpy>=1.24.0
 pyyaml>=6.0
+scikit-learn>=1.3.0  # ML utilities (for active learning, analysis)
 
 # Database
 sqlalchemy>=2.0.0
+
+# OBD-II Interface (optional - for live OBD data collection)
+obd>=0.7.1  # python-OBD library for OBD-II communication
+
+# HTTP & Networking
+requests>=2.31.0  # Standard HTTP library
 
 # Utilities
 python-dotenv>=1.0.0
@@ -39,3 +51,4 @@ tqdm>=4.65.0
 # Testing (optional)
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0  # Coverage reporting
