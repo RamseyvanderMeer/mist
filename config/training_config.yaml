@@ -1,0 +1,28 @@
+# Training Configuration
+
+training:
+  batch_size: 32
+  learning_rate: 1e-5
+  num_epochs: 10
+  warmup_steps: 100
+  weight_decay: 0.01
+  temperature: 0.05  # For contrastive loss
+  gradient_accumulation_steps: 1
+
+fine_tuning:
+  enabled: true
+  checkpoint_interval: 1  # Save after each epoch
+  min_feedback_samples: 10  # Minimum samples to start training
+  validation_split: 0.2
+  early_stopping_patience: 3
+
+reward_model:
+  input_dim: 768
+  hidden_dim: 512
+  learning_rate: 1e-4
+
+active_learning:
+  enabled: true
+  uncertainty_threshold: 0.65
+  batch_size: 10
+  sampling_strategy: uncertainty  # uncertainty, random, diversity

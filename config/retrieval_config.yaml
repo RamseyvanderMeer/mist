@@ -1,0 +1,43 @@
+# Retrieval Configuration
+
+vector_store:
+  provider: qdrant
+  collection_name: repair_guides_enhanced
+  distance_metric: cosine
+  vector_size: 768
+  url: http://localhost:6333  # Or local file path (e.g., ./data/vector_store)
+
+retrieval:
+  initial_k: 100
+  rerank_k: 50
+  final_k: 10
+  min_similarity: 0.5
+
+reranking:
+  enabled: true
+  provider: local  # cohere or local
+  model: cross-encoder/ms-marco-MiniLM-L-12-v2  # Local model
+  # For Cohere API:
+  # provider: cohere
+  # model: rerank-english-v3.0
+  # api_key_env: COHERE_API_KEY
+  top_k: 50
+
+ranking:
+  embedding_similarity: 0.4
+  rerank_score: 0.3
+  kg_path_score: 0.2
+  feedback_score: 0.1
+
+knowledge_graph:
+  enabled: true
+  graph_path: data/knowledge_graph.graphml
+  max_path_length: 3
+  min_path_score: 0.3
+
+clarification:
+  enabled: true
+  ambiguity_threshold: 0.65
+  score_variance_threshold: 0.02
+  max_questions: 3
+  max_clarifications_per_session: 3
