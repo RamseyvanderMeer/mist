@@ -7,7 +7,7 @@ vector_store:
   collection_name: repair_guides_enhanced  # Collection name in Qdrant
   distance_metric: cosine  # Distance metric: cosine, euclidean, dot
   vector_size: 768  # Embedding dimension (must match embedding output_dimension)
-  url: http://localhost:6333  # Qdrant server URL or local file path (e.g., ./data/vector_store)
+  url: ./data/vector_store  # Qdrant server URL or local file path (e.g., ./data/vector_store)
 
 # Multi-stage retrieval parameters
 retrieval:

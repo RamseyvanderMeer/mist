@@ -332,38 +332,26 @@ class IstaDatabase:
         """
         Get content segments for a repair procedure.
         
+        Note: XEP_INFOSEGMENTS doesn't have a direct INFOOBJECTID column.
+        Segments may be linked via CONTROLID or accessed through xmlvalueprimitive database.
+        For now, this returns an empty list as segments aren't directly queryable.
+        
         Args:
             procedure_id: Procedure ID from XEP_INFOOBJECTS table
         
         Returns:
-            List of dictionaries with procedure segment information
+            List of dictionaries with procedure segment information (empty for now)
         """
         try:
-            with self._connection.session() as session:
-                result = session.execute(
-                    text("""
-                        SELECT * FROM XEP_INFOSEGMENTS
-                        WHERE INFOOBJECTID = :id
-                        ORDER BY SEGMENTORDER
-                    """),
-                    {"id": procedure_id}
-                )
-                rows = result.fetchall()
-                
-                # Convert rows to dictionaries (SQLAlchemy 2.0 compatible)
-                result_list = []
-                for row in rows:
-                    if hasattr(row, '_mapping'):
-                        result_list.append(dict(row._mapping))
-                    elif hasattr(row, '_asdict'):
-                        result_list.append(row._asdict())
-                    else:
-                        # Fallback: create dict from row keys and values
-                        result_list.append({key: getattr(row, key) for key in row.keys()})
-                return result_list
+            # XEP_INFOSEGMENTS doesn't have INFOOBJECTID column
+            # Segments are typically accessed via xmlvalueprimitive database using CONTENTID
+            # For now, return empty list - the procedure title will be used for indexing
+            logger.debug(f"Segments not directly queryable for procedure {procedure_id}, using title only")
+            return []
         except Exception as e:
             logger.error(f"Error querying info segments for procedure {procedure_id}: {e}")
-            raise
+            # Return empty list instead of raising to allow script to continue
+            return []
     
     def get_fault_codes_for_procedure(self, procedure_id: str) -> List[str]:
         """
@@ -377,12 +365,13 @@ class IstaDatabase:
         """
         try:
             with self._connection.session() as session:
+                # RG_ECUFAULT_DOCIDS uses ECUFAULT_ID (not FAULTCODE_ID) and INFOOBJECTID (not DOCID)
                 result = session.execute(
                     text("""
                         SELECT DISTINCT fc.CODE
                         FROM XEP_FAULTCODES fc
-                        INNER JOIN RG_ECUFAULT_DOCIDS rg ON fc.ID = rg.FAULTCODE_ID
-                        WHERE rg.DOCID = :procedure_id
+                        INNER JOIN RG_ECUFAULT_DOCIDS rg ON fc.ID = rg.ECUFAULT_ID
+                        WHERE rg.INFOOBJECTID = :procedure_id
                         AND fc.CODE IS NOT NULL
                     """),
                     {"procedure_id": procedure_id}

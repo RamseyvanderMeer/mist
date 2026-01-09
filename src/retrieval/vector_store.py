@@ -6,6 +6,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue, MatchAny
 import numpy as np
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,8 @@ class VectorStore:
         metric = self.config.get("distance_metric", "cosine").lower()
         metric_map = {
             "cosine": Distance.COSINE,
-            "euclidean": Distance.EUCLIDEAN,
+            "euclidean": Distance.EUCLID,
+            "euclid": Distance.EUCLID,
             "dot": Distance.DOT,
         }
         
@@ -192,8 +194,16 @@ class VectorStore:
         try:
             points = []
             for i, (embedding, doc) in enumerate(zip(embeddings, documents)):
+                # Convert ID to UUID if it's not already a UUID
+                doc_id = doc.get("id", i)
+                if isinstance(doc_id, (int, str)) and not isinstance(doc_id, uuid.UUID):
+                    # Use uuid5 to create deterministic UUID from procedure_id or index
+                    # Using a fixed namespace UUID for consistency
+                    namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+                    doc_id = uuid.uuid5(namespace, str(doc_id))
+                
                 point = PointStruct(
-                    id=doc.get("id", i),
+                    id=doc_id,
                     vector=embedding.tolist(),
                     payload={
                         "text": doc.get("text", ""),
@@ -471,5 +481,7 @@ class VectorStore:
             raise VectorStoreOperationError(
                 f"Failed to get collection info: {e}"
             ) from e
+
+
 
 
