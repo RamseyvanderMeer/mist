@@ -6,12 +6,17 @@ import torch.nn.functional as F
 from typing import List, Tuple
 import logging
 
+# Import the new InfoNCELoss class
+from src.learning.losses import InfoNCELoss, contrastive_loss as _legacy_contrastive_loss
+
 logger = logging.getLogger(__name__)
 
 
 def contrastive_loss(anchor: torch.Tensor, positive: torch.Tensor, negatives: List[torch.Tensor], temperature: float = 0.05) -> torch.Tensor:
     """
-    InfoNCE loss for contrastive learning.
+    Deprecated: Use InfoNCELoss class from src.learning.losses instead.
+    
+    Legacy InfoNCE loss function for backward compatibility.
     
     Args:
         anchor: Query embedding
@@ -21,21 +26,11 @@ def contrastive_loss(anchor: torch.Tensor, positive: torch.Tensor, negatives: Li
     
     Returns:
         Contrastive loss
+    
+    Note:
+        This function is maintained for backward compatibility. New code should
+        use the InfoNCELoss class which provides better performance and features
+        like hard negative mining.
     """
-    # Positive pair similarity
-    pos_sim = F.cosine_similarity(anchor, positive, dim=1) / temperature
-    
-    # Negative pair similarities
-    neg_sims = []
-    for neg in negatives:
-        neg_sim = F.cosine_similarity(anchor, neg, dim=1) / temperature
-        neg_sims.append(neg_sim)
-    
-    # Combine
-    all_sims = torch.cat([pos_sim.unsqueeze(1)] + [n.unsqueeze(1) for n in neg_sims], dim=1)
-    
-    # InfoNCE loss
-    labels = torch.zeros(anchor.size(0), dtype=torch.long, device=anchor.device)
-    loss = F.cross_entropy(all_sims, labels)
-    
-    return loss
+    # Use the legacy implementation from losses.py
+    return _legacy_contrastive_loss(anchor, positive, negatives, temperature)
