@@ -348,10 +348,16 @@ class TestTrainingConfig:
         assert "enabled" in active_learning
         assert isinstance(active_learning["enabled"], bool)
         assert "uncertainty_threshold" in active_learning
+        assert "score_variance_threshold" in active_learning
+        assert "top_n_for_analysis" in active_learning
         assert "batch_size" in active_learning
         assert "sampling_strategy" in active_learning
         
         assert active_learning["sampling_strategy"] in ["uncertainty", "random", "diversity"]
+        assert isinstance(active_learning["uncertainty_threshold"], (int, float))
+        assert isinstance(active_learning["score_variance_threshold"], (int, float))
+        assert isinstance(active_learning["top_n_for_analysis"], int)
+        assert active_learning["top_n_for_analysis"] > 0
 
 
 class TestConfigFilesExist:
