@@ -4,107 +4,692 @@ Embedding fine-tuning pipeline with contrastive learning.
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional, Union, Any
+from pathlib import Path
 import logging
+import yaml
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+from ..learning.losses import InfoNCELoss
+from ..feedback.collector import FeedbackCollector
+from ..database.schema import FeedbackSession, MistEmbedding
+from ..database.connection import create_connection
+from ..paths import get_paths
 
 logger = logging.getLogger(__name__)
 
 
-class FeedbackDataset(Dataset):
-    """Dataset for feedback-based training"""
+class ContrastiveFeedbackDataset(Dataset):
+    """
+    Dataset for contrastive learning from feedback data.
     
-    def __init__(self, embeddings: List[torch.Tensor], labels: List[float]):
+    Creates positive pairs (query, selected_guide) and negative pairs
+    (query, non-selected guides) for training embeddings.
+    """
+    
+    def __init__(
+        self,
+        anchors: List[torch.Tensor],
+        positives: List[torch.Tensor],
+        negatives_list: List[List[torch.Tensor]],
+        num_negatives: int = 5
+    ):
         """
+        Initialize contrastive feedback dataset.
+        
         Args:
-            embeddings: List of pre-computed embeddings
-            labels: List of labels (0.0 to 1.0)
+            anchors: List of anchor embeddings (query embeddings)
+            positives: List of positive embeddings (selected guide embeddings)
+            negatives_list: List of lists of negative embeddings (non-selected guides)
+            num_negatives: Number of negatives to use per anchor (default: 5)
         """
-        self.embeddings = embeddings
-        self.labels = labels
+        if len(anchors) != len(positives) or len(anchors) != len(negatives_list):
+            raise ValueError(
+                f"Mismatch in dataset sizes: anchors={len(anchors)}, "
+                f"positives={len(positives)}, negatives_list={len(negatives_list)}"
+            )
+        
+        self.anchors = anchors
+        self.positives = positives
+        self.negatives_list = negatives_list
+        self.num_negatives = num_negatives
     
-    def __len__(self):
-        return len(self.embeddings)
+    def __len__(self) -> int:
+        return len(self.anchors)
     
-    def __getitem__(self, idx):
-        return self.embeddings[idx], self.labels[idx]
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Get a training sample.
+        
+        Returns:
+            Tuple of (anchor, positive, negatives) tensors
+            - anchor: (embedding_dim,)
+            - positive: (embedding_dim,)
+            - negatives: (num_negatives, embedding_dim)
+        """
+        anchor = self.anchors[idx]
+        positive = self.positives[idx]
+        negatives = self.negatives_list[idx]
+        
+        # Ensure we have enough negatives
+        if len(negatives) < self.num_negatives:
+            # Pad with last negative if needed
+            while len(negatives) < self.num_negatives:
+                negatives.append(negatives[-1] if negatives else anchor)
+        elif len(negatives) > self.num_negatives:
+            # Sample random negatives
+            indices = torch.randperm(len(negatives))[:self.num_negatives]
+            negatives = [negatives[i] for i in indices]
+        
+        # Stack negatives into tensor
+        negatives_tensor = torch.stack(negatives[:self.num_negatives])
+        
+        return anchor, positive, negatives_tensor
 
 
 class EmbeddingTrainer:
     """
     Trains embeddings using contrastive learning from feedback data.
+    
+    Uses InfoNCE loss to fine-tune embeddings based on user feedback,
+    learning to distinguish between relevant and irrelevant repair guides.
     """
     
-    def __init__(self, encoder, config):
+    def __init__(
+        self,
+        encoder: nn.Module,
+        config: Optional[Union[Dict[str, Any], Path, str]] = None,
+        feedback_collector: Optional[FeedbackCollector] = None
+    ):
         """
+        Initialize embedding trainer.
+        
         Args:
-            encoder: MultiModalEncoder to train
-            config: Training configuration dict
+            encoder: MultiModalEncoder instance to train
+            config: Training configuration dict, Path to config file, or None to load default
+            feedback_collector: FeedbackCollector instance. If None, creates one.
+        
+        Raises:
+            ValueError: If configuration is invalid
+            RuntimeError: If encoder or device setup fails
         """
         self.encoder = encoder
-        self.config = config
+        self.config = self._load_config(config)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.encoder.to(self.device)
+        
+        # Initialize feedback collector
+        if feedback_collector is None:
+            paths = get_paths()
+            self.feedback_collector = FeedbackCollector(str(paths.feedback_db))
+        else:
+            self.feedback_collector = feedback_collector
+        
+        # Initialize checkpoint directory
+        paths = get_paths()
+        self.checkpoint_dir = paths.embeddings_checkpoints
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Training state
+        self.current_epoch = 0
+        self.best_val_loss = float('inf')
+        self.patience_counter = 0
+        
+        logger.info(f"Initialized EmbeddingTrainer on device: {self.device}")
+        logger.info(f"Checkpoint directory: {self.checkpoint_dir}")
     
-    def train(self, feedback_data: List[Dict]):
+    def _load_config(self, config: Optional[Union[Dict[str, Any], Path, str]]) -> Dict[str, Any]:
         """
-        Train encoder on feedback data.
+        Load configuration from dict, file path, or default location.
         
         Args:
-            feedback_data: List of feedback dicts with embeddings and ratings
+            config: Config dict, Path to YAML file, or None for default
+        
+        Returns:
+            Configuration dictionary with training and fine_tuning sections
         """
-        # Filter by minimum rating
-        min_rating = self.config.get("min_feedback_samples", 1)
-        filtered_data = [d for d in feedback_data if d.get("rating", 0) >= min_rating]
+        if config is None:
+            # Load from default location
+            paths = get_paths()
+            config_path = paths.training_config
+        elif isinstance(config, (str, Path)):
+            config_path = Path(config)
+        else:
+            # Already a dict
+            return config
         
-        if len(filtered_data) < 10:
-            logger.warning(f"Insufficient feedback data: {len(filtered_data)} samples (minimum 10)")
-            return
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"Config file not found: {config_path}"
+            )
         
-        # Create dataset
-        embeddings = [d["embedding"] for d in filtered_data]
-        labels = [d["rating"] / 5.0 for d in filtered_data]  # Normalize to [0, 1]
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                full_config = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            raise ValueError(
+                f"Failed to parse YAML config file {config_path}: {e}"
+            ) from e
         
-        dataset = FeedbackDataset(embeddings, labels)
-        dataloader = DataLoader(
-            dataset,
-            batch_size=self.config.get("batch_size", 32),
-            shuffle=True
-        )
+        if full_config is None:
+            raise ValueError(f"Config file {config_path} is empty")
         
-        # Optimizer
+        return full_config
+    
+    def _get_training_config(self) -> Dict[str, Any]:
+        """Get training configuration section."""
+        return self.config.get("training", {})
+    
+    def _get_fine_tuning_config(self) -> Dict[str, Any]:
+        """Get fine-tuning configuration section."""
+        return self.config.get("fine_tuning", {})
+    
+    def _get_guide_embedding(
+        self,
+        procedure_id: str,
+        guide_text: Optional[str] = None
+    ) -> Optional[torch.Tensor]:
+        """
+        Get embedding for a guide (procedure).
+        
+        First tries to load from MistEmbedding table, otherwise encodes guide text.
+        
+        Args:
+            procedure_id: Procedure ID
+            guide_text: Optional guide text to encode if embedding not found
+        
+        Returns:
+            Guide embedding tensor or None if not available
+        """
+        # Try to get from MistEmbedding table
+        paths = get_paths()
+        mist_db_path = paths.get_mist_db_path()
+        
+        try:
+            connection = create_connection(mist_db_path)
+            with connection.session() as session:
+                embedding_record = session.query(MistEmbedding).filter_by(
+                    procedure_id=procedure_id
+                ).first()
+                
+                if embedding_record and embedding_record.embedding:
+                    embedding_np = embedding_record.get_embedding()
+                    if embedding_np is not None:
+                        return torch.from_numpy(embedding_np).float()
+        except Exception as e:
+            logger.debug(f"Could not load embedding from database for {procedure_id}: {e}")
+        
+        # Fallback: encode guide text if provided
+        if guide_text:
+            try:
+                self.encoder.eval()
+                with torch.no_grad():
+                    # Encode as fault code (text-based encoding)
+                    embedding = self.encoder.encode(guide_text, obd_data=None)
+                    return embedding.squeeze(0) if embedding.dim() > 1 else embedding
+            except Exception as e:
+                logger.debug(f"Could not encode guide text for {procedure_id}: {e}")
+        
+        return None
+    
+    def create_dataset(
+        self,
+        min_feedback_samples: Optional[int] = None
+    ) -> Tuple[ContrastiveFeedbackDataset, ContrastiveFeedbackDataset]:
+        """
+        Create training and validation datasets from feedback data.
+        
+        Queries feedback sessions, creates embeddings, and generates
+        positive/negative pairs for contrastive learning.
+        
+        Args:
+            min_feedback_samples: Minimum number of samples required.
+                If None, uses config value.
+        
+        Returns:
+            Tuple of (train_dataset, val_dataset)
+        
+        Raises:
+            ValueError: If insufficient feedback data
+            RuntimeError: If dataset creation fails
+        """
+        fine_tuning_config = self._get_fine_tuning_config()
+        min_samples = min_feedback_samples or fine_tuning_config.get("min_feedback_samples", 10)
+        validation_split = fine_tuning_config.get("validation_split", 0.2)
+        
+        # Query feedback sessions with selected guides
+        try:
+            connection = create_connection(self.feedback_collector.db_path)
+            with connection.session() as session:
+                # Get sessions with selected_guide
+                sessions = session.query(FeedbackSession).filter(
+                    FeedbackSession.selected_guide.isnot(None),
+                    FeedbackSession.selected_guide != ""
+                ).all()
+        except Exception as e:
+            raise RuntimeError(f"Failed to query feedback sessions: {e}") from e
+        
+        if len(sessions) < min_samples:
+            raise ValueError(
+                f"Insufficient feedback data: {len(sessions)} sessions "
+                f"(minimum {min_samples} required)"
+            )
+        
+        logger.info(f"Found {len(sessions)} feedback sessions with selected guides")
+        
+        # Create embeddings and pairs
+        anchors = []
+        positives = []
+        negatives_list = []
+        
+        self.encoder.eval()
+        with torch.no_grad():
+            for session in sessions:
+                try:
+                    # Get session data
+                    fault_codes = session.get_fault_codes()
+                    obd_data = session.get_obd_data()
+                    selected_guide = session.selected_guide
+                    recommended_guides = session.get_recommended_guides()
+                    
+                    if not fault_codes or not selected_guide:
+                        continue
+                    
+                    # Create query embedding (anchor)
+                    fault_codes_str = ", ".join(fault_codes) if isinstance(fault_codes, list) else str(fault_codes)
+                    query_embedding = self.encoder.encode(
+                        fault_codes_str,
+                        obd_data=obd_data if obd_data else None
+                    )
+                    query_embedding = query_embedding.squeeze(0) if query_embedding.dim() > 1 else query_embedding
+                    
+                    # Get positive embedding (selected guide)
+                    positive_embedding = self._get_guide_embedding(selected_guide)
+                    if positive_embedding is None:
+                        logger.debug(f"Could not get embedding for selected guide: {selected_guide}")
+                        continue
+                    
+                    # Get negative embeddings (non-selected recommended guides)
+                    negative_embeddings = []
+                    for guide_id in recommended_guides:
+                        if guide_id != selected_guide:
+                            neg_emb = self._get_guide_embedding(guide_id)
+                            if neg_emb is not None:
+                                negative_embeddings.append(neg_emb)
+                    
+                    # If insufficient negatives, we'll pad in the dataset
+                    if negative_embeddings:
+                        anchors.append(query_embedding)
+                        positives.append(positive_embedding)
+                        negatives_list.append(negative_embeddings)
+                
+                except Exception as e:
+                    logger.warning(f"Error processing session {session.session_id}: {e}")
+                    continue
+        
+        if len(anchors) < min_samples:
+            raise ValueError(
+                f"Insufficient valid samples after processing: {len(anchors)} "
+                f"(minimum {min_samples} required)"
+            )
+        
+        logger.info(f"Created {len(anchors)} training samples")
+        
+        # Split into train/val
+        if validation_split > 0 and len(anchors) > 1:
+            train_indices, val_indices = train_test_split(
+                range(len(anchors)),
+                test_size=validation_split,
+                random_state=42,
+                shuffle=True
+            )
+            
+            train_anchors = [anchors[i] for i in train_indices]
+            train_positives = [positives[i] for i in train_indices]
+            train_negatives = [negatives_list[i] for i in train_indices]
+            
+            val_anchors = [anchors[i] for i in val_indices]
+            val_positives = [positives[i] for i in val_indices]
+            val_negatives = [negatives_list[i] for i in val_indices]
+            
+            train_dataset = ContrastiveFeedbackDataset(
+                train_anchors, train_positives, train_negatives
+            )
+            val_dataset = ContrastiveFeedbackDataset(
+                val_anchors, val_positives, val_negatives
+            )
+            
+            logger.info(
+                f"Split dataset: {len(train_dataset)} train, {len(val_dataset)} val"
+            )
+        else:
+            # No validation split
+            train_dataset = ContrastiveFeedbackDataset(
+                anchors, positives, negatives_list
+            )
+            val_dataset = ContrastiveFeedbackDataset([], [], [])
+            logger.info(f"Using all {len(train_dataset)} samples for training")
+        
+        return train_dataset, val_dataset
+    
+    def train(
+        self,
+        train_dataset: Optional[ContrastiveFeedbackDataset] = None,
+        val_dataset: Optional[ContrastiveFeedbackDataset] = None,
+        resume_from_checkpoint: Optional[Union[str, Path]] = None
+    ) -> None:
+        """
+        Train encoder using contrastive learning.
+        
+        Args:
+            train_dataset: Training dataset. If None, creates from feedback data.
+            val_dataset: Validation dataset. If None, creates from feedback data.
+            resume_from_checkpoint: Path to checkpoint to resume from (optional)
+        
+        Raises:
+            ValueError: If datasets are invalid or insufficient data
+            RuntimeError: If training fails
+        """
+        # Create datasets if not provided
+        if train_dataset is None or val_dataset is None:
+            train_dataset, val_dataset = self.create_dataset()
+        
+        if len(train_dataset) == 0:
+            raise ValueError("Training dataset is empty")
+        
+        # Load checkpoint if resuming
+        if resume_from_checkpoint:
+            self.load_checkpoint(resume_from_checkpoint)
+        
+        # Get training config
+        training_config = self._get_training_config()
+        fine_tuning_config = self._get_fine_tuning_config()
+        
+        batch_size = training_config.get("batch_size", 32)
+        learning_rate = training_config.get("learning_rate", 1e-5)
+        num_epochs = training_config.get("num_epochs", 10)
+        warmup_steps = training_config.get("warmup_steps", 100)
+        weight_decay = training_config.get("weight_decay", 0.01)
+        temperature = training_config.get("temperature", 0.05)
+        gradient_accumulation_steps = training_config.get("gradient_accumulation_steps", 1)
+        checkpoint_interval = fine_tuning_config.get("checkpoint_interval", 1)
+        early_stopping_patience = fine_tuning_config.get("early_stopping_patience", 3)
+        
+        # Initialize optimizer
         optimizer = torch.optim.AdamW(
             self.encoder.parameters(),
-            lr=self.config.get("learning_rate", 1e-5),
-            weight_decay=self.config.get("weight_decay", 0.01)
+            lr=learning_rate,
+            weight_decay=weight_decay
         )
         
+        # Initialize learning rate scheduler (linear warmup + cosine decay)
+        total_steps = len(train_dataset) // batch_size * num_epochs
+        scheduler = self._create_scheduler(optimizer, warmup_steps, total_steps)
+        
+        # Initialize loss function
+        loss_fn = InfoNCELoss(temperature=temperature, reduction='mean')
+        
+        # Create data loaders
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            pin_memory=torch.cuda.is_available()
+        )
+        
+        val_loader = None
+        if len(val_dataset) > 0:
+            val_loader = DataLoader(
+                val_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                pin_memory=torch.cuda.is_available()
+            )
+        
+        logger.info(f"Starting training for {num_epochs} epochs")
+        logger.info(f"Batch size: {batch_size}, Learning rate: {learning_rate}")
+        logger.info(f"Training samples: {len(train_dataset)}, Validation samples: {len(val_dataset)}")
+        
         # Training loop
-        num_epochs = self.config.get("num_epochs", 10)
-        for epoch in range(num_epochs):
-            self.encoder.train()
-            total_loss = 0.0
+        for epoch in range(self.current_epoch, num_epochs):
+            self.current_epoch = epoch
             
-            for batch_embeddings, batch_labels in dataloader:
-                batch_embeddings = batch_embeddings.to(self.device)
-                batch_labels = batch_labels.to(self.device)
-                
-                optimizer.zero_grad()
-                
-                # Simple reconstruction loss (placeholder - implement contrastive loss)
-                # TODO: Implement proper contrastive learning with positive/negative pairs
-                loss = nn.MSELoss()(batch_embeddings.mean(dim=0), batch_labels.mean())
-                
-                loss.backward()
-                optimizer.step()
-                
-                total_loss += loss.item()
+            # Training phase
+            train_loss = self._train_epoch(
+                train_loader,
+                optimizer,
+                scheduler,
+                loss_fn,
+                gradient_accumulation_steps
+            )
             
-            logger.info(f"Epoch {epoch+1}/{num_epochs}, Loss: {total_loss/len(dataloader):.4f}")
+            # Validation phase
+            val_loss = None
+            if val_loader is not None:
+                val_loss = self._validate_epoch(val_loader, loss_fn)
+            
+            # Logging
+            log_msg = (
+                f"Epoch {epoch+1}/{num_epochs} - "
+                f"Train Loss: {train_loss:.4f}"
+            )
+            if val_loss is not None:
+                log_msg += f", Val Loss: {val_loss:.4f}"
+            log_msg += f", LR: {scheduler.get_last_lr()[0]:.2e}"
+            logger.info(log_msg)
+            
+            # Checkpointing
+            if (epoch + 1) % checkpoint_interval == 0:
+                checkpoint_path = self.checkpoint_dir / f"checkpoint_epoch_{epoch+1}.pt"
+                self.save_checkpoint(checkpoint_path, epoch, train_loss, val_loss, optimizer, scheduler)
+                
+                # Also save as latest
+                latest_path = self.checkpoint_dir / "latest.pt"
+                self.save_checkpoint(latest_path, epoch, train_loss, val_loss, optimizer, scheduler)
+            
+            # Early stopping
+            if val_loss is not None:
+                if val_loss < self.best_val_loss:
+                    self.best_val_loss = val_loss
+                    self.patience_counter = 0
+                    # Save best model
+                    best_path = self.checkpoint_dir / "best.pt"
+                    self.save_checkpoint(best_path, epoch, train_loss, val_loss, optimizer, scheduler)
+                else:
+                    self.patience_counter += 1
+                    if self.patience_counter >= early_stopping_patience:
+                        logger.info(
+                            f"Early stopping triggered after {epoch+1} epochs "
+                            f"(patience: {early_stopping_patience})"
+                        )
+                        break
+        
+        logger.info("Training completed")
     
-    def save_checkpoint(self, path: str):
-        """Save checkpoint"""
-        torch.save({
+    def _create_scheduler(
+        self,
+        optimizer: torch.optim.Optimizer,
+        warmup_steps: int,
+        total_steps: int
+    ) -> torch.optim.lr_scheduler._LRScheduler:
+        """
+        Create learning rate scheduler with warmup and cosine decay.
+        
+        Args:
+            optimizer: Optimizer instance
+            warmup_steps: Number of warmup steps
+            total_steps: Total number of training steps
+        
+        Returns:
+            Learning rate scheduler
+        """
+        def lr_lambda(current_step: int) -> float:
+            if current_step < warmup_steps:
+                # Linear warmup
+                return float(current_step) / float(max(1, warmup_steps))
+            else:
+                # Cosine decay
+                progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+                return max(0.0, 0.5 * (1.0 + np.cos(np.pi * progress)))
+        
+        return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    
+    def _train_epoch(
+        self,
+        train_loader: DataLoader,
+        optimizer: torch.optim.Optimizer,
+        scheduler: torch.optim.lr_scheduler._LRScheduler,
+        loss_fn: InfoNCELoss,
+        gradient_accumulation_steps: int
+    ) -> float:
+        """
+        Train for one epoch.
+        
+        Args:
+            train_loader: Training data loader
+            optimizer: Optimizer
+            scheduler: Learning rate scheduler
+            loss_fn: Loss function
+            gradient_accumulation_steps: Steps to accumulate gradients
+        
+        Returns:
+            Average training loss
+        """
+        self.encoder.train()
+        total_loss = 0.0
+        num_batches = 0
+        
+        for batch_idx, (anchors, positives, negatives) in enumerate(train_loader):
+            anchors = anchors.to(self.device)
+            positives = positives.to(self.device)
+            negatives = negatives.to(self.device)  # (batch_size, num_negatives, embedding_dim)
+            
+            # Forward pass
+            loss = loss_fn(anchors, positives, negatives)
+            
+            # Scale loss for gradient accumulation
+            loss = loss / gradient_accumulation_steps
+            
+            # Backward pass
+            loss.backward()
+            
+            # Update weights
+            if (batch_idx + 1) % gradient_accumulation_steps == 0:
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
+            
+            total_loss += loss.item() * gradient_accumulation_steps
+            num_batches += 1
+        
+        # Handle remaining gradients
+        if num_batches % gradient_accumulation_steps != 0:
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
+        
+        return total_loss / num_batches if num_batches > 0 else 0.0
+    
+    def _validate_epoch(
+        self,
+        val_loader: DataLoader,
+        loss_fn: InfoNCELoss
+    ) -> float:
+        """
+        Validate for one epoch.
+        
+        Args:
+            val_loader: Validation data loader
+            loss_fn: Loss function
+        
+        Returns:
+            Average validation loss
+        """
+        self.encoder.eval()
+        total_loss = 0.0
+        num_batches = 0
+        
+        with torch.no_grad():
+            for anchors, positives, negatives in val_loader:
+                anchors = anchors.to(self.device)
+                positives = positives.to(self.device)
+                negatives = negatives.to(self.device)
+                
+                loss = loss_fn(anchors, positives, negatives)
+                total_loss += loss.item()
+                num_batches += 1
+        
+        return total_loss / num_batches if num_batches > 0 else 0.0
+    
+    def save_checkpoint(
+        self,
+        path: Union[str, Path],
+        epoch: int,
+        train_loss: float,
+        val_loss: Optional[float],
+        optimizer: torch.optim.Optimizer,
+        scheduler: torch.optim.lr_scheduler._LRScheduler
+    ) -> None:
+        """
+        Save training checkpoint.
+        
+        Args:
+            path: Path to save checkpoint
+            epoch: Current epoch number
+            train_loss: Training loss
+            val_loss: Validation loss (optional)
+            optimizer: Optimizer state
+            scheduler: Scheduler state
+        """
+        checkpoint = {
+            "epoch": epoch,
             "encoder_state_dict": self.encoder.state_dict(),
-            "config": self.config
-        }, path)
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "config": self.config,
+            "best_val_loss": self.best_val_loss,
+            "patience_counter": self.patience_counter
+        }
+        
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(checkpoint, path)
         logger.info(f"Saved checkpoint to {path}")
+    
+    def load_checkpoint(
+        self,
+        path: Union[str, Path]
+    ) -> Dict[str, Any]:
+        """
+        Load training checkpoint.
+        
+        Args:
+            path: Path to checkpoint file
+        
+        Returns:
+            Checkpoint dictionary
+        
+        Raises:
+            FileNotFoundError: If checkpoint file doesn't exist
+            RuntimeError: If loading fails
+        """
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {path}")
+        
+        try:
+            checkpoint = torch.load(path, map_location=self.device)
+            
+            self.encoder.load_state_dict(checkpoint["encoder_state_dict"])
+            self.current_epoch = checkpoint.get("epoch", 0)
+            self.best_val_loss = checkpoint.get("best_val_loss", float('inf'))
+            self.patience_counter = checkpoint.get("patience_counter", 0)
+            
+            logger.info(f"Loaded checkpoint from {path} (epoch {self.current_epoch})")
+            return checkpoint
+        
+        except Exception as e:
+            raise RuntimeError(f"Failed to load checkpoint from {path}: {e}") from e
