@@ -4,7 +4,7 @@ FastAPI server for MIST API endpoints.
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .schemas import (
-    FaultCodeRequest, QueryResponse, RatingFeedback,
+    QueryRequest, QueryResponse, ClarifyRequest, RatingFeedback,
     RepairOutcomeFeedback, ConversationCorrection, FeedbackStatistics
 )
 import logging
@@ -30,14 +30,14 @@ async def health_check():
 
 
 @app.post("/query", response_model=QueryResponse)
-async def query(request: FaultCodeRequest):
+async def query(request: QueryRequest):
     """Process fault codes and OBD data"""
     # TODO: Implement query processing
     raise HTTPException(status_code=501, detail="Not implemented")
 
 
 @app.post("/clarify", response_model=QueryResponse)
-async def clarify(request):
+async def clarify(request: ClarifyRequest):
     """Process clarification responses"""
     # TODO: Implement clarification processing
     raise HTTPException(status_code=501, detail="Not implemented")
