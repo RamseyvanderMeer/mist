@@ -23,6 +23,7 @@ rank-bm25>=0.2.2
 
 # Knowledge Graph
 networkx>=3.0
+lxml>=4.9.0  # Required for GraphML export
 
 # API & Infrastructure
 fastapi>=0.100.0

@@ -50,6 +50,22 @@ class KnowledgeGraphBuilder:
             'errors': 0
         }
     
+    def _table_exists(self, table_name: str) -> bool:
+        """Check if a table exists in the database."""
+        try:
+            with self.ista_db.connection.session() as session:
+                result = session.execute(
+                    text("""
+                        SELECT name FROM sqlite_master 
+                        WHERE type='table' AND name=:table_name
+                    """),
+                    {"table_name": table_name}
+                )
+                return result.fetchone() is not None
+        except Exception as e:
+            logger.warning(f"Error checking if table {table_name} exists: {e}")
+            return False
+    
     def build(self) -> nx.MultiDiGraph:
         """
         Build knowledge graph from database.
@@ -79,10 +95,11 @@ class KnowledgeGraphBuilder:
             self._extract_diagnostic_tree_relationships()
             
             # Add graph metadata
+            # Note: GraphML doesn't support dict values, so convert stats to string
             self.graph.graph['created_at'] = datetime.now().isoformat()
             self.graph.graph['nodes_count'] = self.graph.number_of_nodes()
             self.graph.graph['edges_count'] = self.graph.number_of_edges()
-            self.graph.graph['stats'] = self.stats.copy()
+            self.graph.graph['stats'] = str(self.stats.copy())
             
             logger.info(
                 f"Built knowledge graph with {self.graph.number_of_nodes()} nodes "
@@ -101,6 +118,10 @@ class KnowledgeGraphBuilder:
     
     def _extract_fault_codes(self):
         """Extract fault code nodes from XEP_FAULTCODES and XEP_FAULTLABELS tables."""
+        if not self._table_exists("XEP_FAULTCODES"):
+            logger.info("XEP_FAULTCODES table not found, skipping fault code extraction")
+            return
+        
         try:
             with self.ista_db.connection.session() as session:
                 # Query fault codes with labels
@@ -155,6 +176,10 @@ class KnowledgeGraphBuilder:
     
     def _extract_ecus(self):
         """Extract ECU nodes from XEP_ECUVARIANTS and XEP_ECUGROUPS tables."""
+        if not self._table_exists("XEP_ECUVARIANTS"):
+            logger.info("XEP_ECUVARIANTS table not found, skipping ECU extraction")
+            return
+        
         try:
             with self.ista_db.connection.session() as session:
                 # Query ECU variants
@@ -204,6 +229,10 @@ class KnowledgeGraphBuilder:
     
     def _extract_diagnostic_objects(self):
         """Extract diagnostic object nodes from XEP_DIAGNOSISOBJECTS table."""
+        if not self._table_exists("XEP_DIAGNOSISOBJECTS"):
+            logger.info("XEP_DIAGNOSISOBJECTS table not found, skipping diagnostic object extraction")
+            return
+        
         try:
             with self.ista_db.connection.session() as session:
                 # Query diagnostic objects
@@ -251,6 +280,10 @@ class KnowledgeGraphBuilder:
     
     def _extract_repair_procedures(self):
         """Extract repair procedure nodes from XEP_INFOOBJECTS table."""
+        if not self._table_exists("XEP_INFOOBJECTS"):
+            logger.info("XEP_INFOOBJECTS table not found, skipping repair procedure extraction")
+            return
+        
         try:
             with self.ista_db.connection.session() as session:
                 # Query repair procedures
@@ -299,6 +332,10 @@ class KnowledgeGraphBuilder:
     
     def _extract_fault_ecu_relationships(self):
         """Extract fault-ECU relationships from RG_ECUFAULT_DOCIDS and fault code ECU references."""
+        if not self._table_exists("XEP_FAULTCODES"):
+            logger.info("XEP_FAULTCODES table not found, skipping fault-ECU relationship extraction")
+            return
+        
         try:
             with self.ista_db.connection.session() as session:
                 # Method 1: Via RG_ECUFAULT_DOCIDS (if it has ECU information)
@@ -351,6 +388,10 @@ class KnowledgeGraphBuilder:
     
     def _extract_fault_diagnostic_relationships(self):
         """Extract fault-diagnostic relationships from XEP_REFDIAGOBJECTS table."""
+        if not self._table_exists("XEP_REFDIAGOBJECTS"):
+            logger.info("XEP_REFDIAGOBJECTS table not found, skipping fault-diagnostic relationship extraction")
+            return
+        
         try:
             with self.ista_db.connection.session() as session:
                 result = session.execute(
@@ -412,6 +453,10 @@ class KnowledgeGraphBuilder:
     
     def _extract_fault_repair_relationships(self):
         """Extract fault-repair relationships from RG_ECUFAULT_DOCIDS table."""
+        if not self._table_exists("RG_ECUFAULT_DOCIDS"):
+            logger.info("RG_ECUFAULT_DOCIDS table not found, skipping fault-repair relationship extraction")
+            return
+        
         try:
             with self.ista_db.connection.session() as session:
                 result = session.execute(
@@ -468,18 +513,12 @@ class KnowledgeGraphBuilder:
     
     def _extract_diagnostic_tree_relationships(self):
         """Extract diagnostic tree parent-child relationships from XEP_REFDIAGNOSISTREE table."""
+        if not self._table_exists("XEP_REFDIAGNOSISTREE"):
+            logger.info("XEP_REFDIAGNOSISTREE table not found, skipping diagnostic tree relationships")
+            return
+        
         try:
             with self.ista_db.connection.session() as session:
-                # Check if table exists
-                table_check = session.execute(
-                    text("""
-                        SELECT name FROM sqlite_master 
-                        WHERE type='table' AND name='XEP_REFDIAGNOSISTREE'
-                    """)
-                )
-                if not table_check.fetchone():
-                    logger.info("XEP_REFDIAGNOSISTREE table not found, skipping diagnostic tree relationships")
-                    return
                 
                 result = session.execute(
                     text("""
@@ -534,8 +573,38 @@ class KnowledgeGraphBuilder:
         # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
+        # Create a copy of the graph for saving (GraphML doesn't support dict/list values)
+        graph_to_save = nx.MultiDiGraph()
+        
+        # Copy nodes, converting complex types to strings
+        for node_id, data in self.graph.nodes(data=True):
+            node_data = {}
+            for key, value in data.items():
+                if isinstance(value, (dict, list)):
+                    node_data[key] = str(value)
+                else:
+                    node_data[key] = value
+            graph_to_save.add_node(node_id, **node_data)
+        
+        # Copy edges, converting complex types to strings
+        for source, target, data in self.graph.edges(data=True):
+            edge_data = {}
+            for key, value in data.items():
+                if isinstance(value, (dict, list)):
+                    edge_data[key] = str(value)
+                else:
+                    edge_data[key] = value
+            graph_to_save.add_edge(source, target, **edge_data)
+        
+        # Copy graph-level attributes, converting complex types to strings
+        for key, value in self.graph.graph.items():
+            if isinstance(value, (dict, list)):
+                graph_to_save.graph[key] = str(value)
+            else:
+                graph_to_save.graph[key] = value
+        
         # Write graph to GraphML format
-        nx.write_graphml(self.graph, str(output_path))
+        nx.write_graphml(graph_to_save, str(output_path))
         
         logger.info(f"Saved knowledge graph to {output_path}")
         logger.info(

@@ -9,12 +9,13 @@ import sys
 import argparse
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add project root to path so we can import from src package
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
-from knowledge.graph_builder import KnowledgeGraphBuilder
-from database.ista_db import IstaDatabase
-from paths import get_paths
+from src.knowledge.graph_builder import KnowledgeGraphBuilder
+from src.database.ista_db import IstaDatabase
+from src.paths import get_paths
 import logging
 
 logging.basicConfig(
