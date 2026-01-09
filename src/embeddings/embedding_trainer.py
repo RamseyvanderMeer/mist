@@ -216,7 +216,8 @@ class EmbeddingTrainer:
                 if embedding_record and embedding_record.embedding:
                     embedding_np = embedding_record.get_embedding()
                     if embedding_np is not None:
-                        return torch.from_numpy(embedding_np).float()
+                        # Copy to make writable and convert to tensor
+                        return torch.from_numpy(embedding_np.copy()).float()
         except Exception as e:
             logger.debug(f"Could not load embedding from database for {procedure_id}: {e}")
         
@@ -259,6 +260,8 @@ class EmbeddingTrainer:
         validation_split = fine_tuning_config.get("validation_split", 0.2)
         
         # Query feedback sessions with selected guides
+        # Collect session data while in session context to avoid detached instance errors
+        session_data_list = []
         try:
             connection = create_connection(self.feedback_collector.db_path)
             with connection.session() as session:
@@ -267,16 +270,26 @@ class EmbeddingTrainer:
                     FeedbackSession.selected_guide.isnot(None),
                     FeedbackSession.selected_guide != ""
                 ).all()
+                
+                # Extract data while still in session context
+                for feedback_session in sessions:
+                    session_data_list.append({
+                        "fault_codes": feedback_session.get_fault_codes(),
+                        "obd_data": feedback_session.get_obd_data(),
+                        "selected_guide": feedback_session.selected_guide,
+                        "recommended_guides": feedback_session.get_recommended_guides(),
+                        "session_id": feedback_session.session_id
+                    })
         except Exception as e:
             raise RuntimeError(f"Failed to query feedback sessions: {e}") from e
         
-        if len(sessions) < min_samples:
+        if len(session_data_list) < min_samples:
             raise ValueError(
-                f"Insufficient feedback data: {len(sessions)} sessions "
+                f"Insufficient feedback data: {len(session_data_list)} sessions "
                 f"(minimum {min_samples} required)"
             )
         
-        logger.info(f"Found {len(sessions)} feedback sessions with selected guides")
+        logger.info(f"Found {len(session_data_list)} feedback sessions with selected guides")
         
         # Create embeddings and pairs
         anchors = []
@@ -285,13 +298,13 @@ class EmbeddingTrainer:
         
         self.encoder.eval()
         with torch.no_grad():
-            for session in sessions:
+            for session_data in session_data_list:
                 try:
                     # Get session data
-                    fault_codes = session.get_fault_codes()
-                    obd_data = session.get_obd_data()
-                    selected_guide = session.selected_guide
-                    recommended_guides = session.get_recommended_guides()
+                    fault_codes = session_data["fault_codes"]
+                    obd_data = session_data["obd_data"]
+                    selected_guide = session_data["selected_guide"]
+                    recommended_guides = session_data["recommended_guides"]
                     
                     if not fault_codes or not selected_guide:
                         continue
@@ -325,7 +338,7 @@ class EmbeddingTrainer:
                         negatives_list.append(negative_embeddings)
                 
                 except Exception as e:
-                    logger.warning(f"Error processing session {session.session_id}: {e}")
+                    logger.warning(f"Error processing session {session_data.get('session_id', 'unknown')}: {e}")
                     continue
         
         if len(anchors) < min_samples:
