@@ -365,6 +365,41 @@ class IstaDatabase:
             logger.error(f"Error querying info segments for procedure {procedure_id}: {e}")
             raise
     
+    def get_fault_codes_for_procedure(self, procedure_id: str) -> List[str]:
+        """
+        Get fault codes associated with a repair procedure.
+        
+        Args:
+            procedure_id: Procedure ID from XEP_INFOOBJECTS table
+        
+        Returns:
+            List of fault code strings (e.g., ["P0301", "P0302"])
+        """
+        try:
+            with self._connection.session() as session:
+                result = session.execute(
+                    text("""
+                        SELECT DISTINCT fc.CODE
+                        FROM XEP_FAULTCODES fc
+                        INNER JOIN RG_ECUFAULT_DOCIDS rg ON fc.ID = rg.FAULTCODE_ID
+                        WHERE rg.DOCID = :procedure_id
+                        AND fc.CODE IS NOT NULL
+                    """),
+                    {"procedure_id": procedure_id}
+                )
+                rows = result.fetchall()
+                
+                fault_codes = []
+                for row in rows:
+                    code = row[0] if isinstance(row, tuple) else row.CODE
+                    if code:
+                        fault_codes.append(str(code))
+                
+                return fault_codes
+        except Exception as e:
+            logger.error(f"Error querying fault codes for procedure {procedure_id}: {e}")
+            raise
+    
     def get_procedures_for_fault(self, fault_code: str) -> List[Dict[str, Any]]:
         """
         Get repair procedures linked to a fault code.
