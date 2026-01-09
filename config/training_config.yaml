@@ -32,5 +32,8 @@ reward_model:
 active_learning:
   enabled: true  # Enable active learning pipeline
   uncertainty_threshold: 0.65  # Score threshold below which cases are flagged as uncertain
+  score_variance_threshold: 0.02  # Variance threshold below which scores are considered too similar (ambiguous)
+  entropy_threshold: null  # Entropy threshold above which scores are considered too uniform (null = auto-calculate as 0.8 * max_entropy)
+  top_n_for_analysis: 3  # Number of top candidates to analyze for variance and entropy calculations
   batch_size: 10  # Number of uncertain cases to collect per batch
   sampling_strategy: uncertainty  # Sampling strategy: uncertainty, random, diversity
