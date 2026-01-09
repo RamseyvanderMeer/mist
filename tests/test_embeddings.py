@@ -640,3 +640,338 @@ def test_multimodal_output_dimension():
     
     assert embeddings.shape[1] == 768
     assert embeddings.shape[1] == encoder.get_dimension()
+
+
+# ============================================================================
+# Additional Edge Case Tests for FaultCodeEncoder
+# ============================================================================
+
+def test_fault_code_encoder_empty_string():
+    """Test encoder handles empty string gracefully"""
+    encoder = FaultCodeEncoder()
+    embeddings = encoder.encode("")
+    assert embeddings.shape == (1, 768)
+    # Should not raise error
+    assert isinstance(embeddings, torch.Tensor)
+
+
+def test_fault_code_encoder_very_long_text():
+    """Test encoder handles very long text inputs (stress test)"""
+    encoder = FaultCodeEncoder()
+    # Create a very long text (10000 characters)
+    very_long_text = "Random/Multiple Cylinder Misfire Detected " * 250
+    embeddings = encoder.encode(very_long_text)
+    
+    assert embeddings.shape == (1, 768)
+    assert isinstance(embeddings, torch.Tensor)
+    # Verify normalization still works
+    norm = torch.norm(embeddings, p=2, dim=1)
+    assert torch.allclose(norm, torch.ones_like(norm), atol=1e-5)
+
+
+def test_fault_code_encoder_invalid_input_types():
+    """Test encoder handles invalid input types"""
+    encoder = FaultCodeEncoder()
+    
+    # Test with None (should raise error)
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(None)
+    
+    # Test with integer (should raise error)
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(123)
+
+
+def test_fault_code_encoder_list_with_non_strings():
+    """Test encoder handles list containing non-string elements"""
+    encoder = FaultCodeEncoder()
+    
+    # Test with list containing non-string
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(["P0300", 123, "P0171"])
+    
+    # Test with list containing None
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(["P0300", None, "P0171"])
+
+
+def test_fault_code_encoder_projection_training_mode():
+    """Test gradient tracking when projection layer is in training mode"""
+    encoder = FaultCodeEncoder()
+    
+    # Set projection to training mode
+    encoder.projection.train()
+    assert encoder.projection.training is True
+    
+    texts = ["Test fault code"]
+    
+    # When projection is training, embeddings should allow gradient tracking
+    # Note: The actual gradient tracking depends on the model.encode() behavior
+    # but the code should handle it gracefully
+    embeddings = encoder.encode(texts, normalize=False)
+    
+    assert embeddings.shape == (1, 768)
+    assert isinstance(embeddings, torch.Tensor)
+    
+    # Test with normalize=True as well
+    embeddings_norm = encoder.encode(texts, normalize=True)
+    assert embeddings_norm.shape == (1, 768)
+    norm = torch.norm(embeddings_norm, p=2, dim=1)
+    assert torch.allclose(norm, torch.ones_like(norm), atol=1e-5)
+
+
+# ============================================================================
+# Additional Edge Case Tests for OBDDataEncoder
+# ============================================================================
+
+def test_obd_data_encoder_invalid_input_type():
+    """Test encoder raises appropriate error for invalid input types"""
+    encoder = OBDDataEncoder()
+    
+    # Test with string (not dict or list)
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode("not a dict or list")
+    
+    # Test with integer
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(123)
+    
+    # Test with None
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(None)
+
+
+def test_obd_data_encoder_all_pids():
+    """Test normalization with all known OBD PIDs"""
+    encoder = OBDDataEncoder()
+    
+    # Test with all known PIDs from the normalization function
+    obd_data = {
+        'engine_rpm': 2500,
+        'vehicle_speed': 60,
+        'throttle_position': 45,
+        'coolant_temp': 95,
+        'intake_temp': 85,
+        'maf_airflow': 25.5,
+        'fuel_pressure': 350,
+        'intake_pressure': 100,
+        'timing_advance': 15.5,
+        'fuel_level': 75,
+        'barometric_pressure': 101
+    }
+    
+    embeddings = encoder.encode(obd_data)
+    assert embeddings.shape == (1, 768)
+    
+    # Verify normalization
+    norm = torch.norm(embeddings, p=2, dim=1)
+    assert torch.allclose(norm, torch.ones_like(norm), atol=1e-5)
+
+
+def test_obd_data_encoder_boundary_values():
+    """Test min/max boundary normalization"""
+    encoder = OBDDataEncoder()
+    
+    # Test with minimum values
+    min_data = {
+        'engine_rpm': 0,
+        'vehicle_speed': 0,
+        'throttle_position': 0,
+        'coolant_temp': -40,
+        'intake_temp': -40,
+        'maf_airflow': 0,
+        'fuel_pressure': 0,
+        'intake_pressure': 0,
+        'timing_advance': -64,
+        'fuel_level': 0,
+        'barometric_pressure': 0
+    }
+    embeddings_min = encoder.encode(min_data)
+    assert embeddings_min.shape == (1, 768)
+    
+    # Test with maximum values
+    max_data = {
+        'engine_rpm': 8000,
+        'vehicle_speed': 255,
+        'throttle_position': 100,
+        'coolant_temp': 215,
+        'intake_temp': 215,
+        'maf_airflow': 655.35,
+        'fuel_pressure': 765,
+        'intake_pressure': 255,
+        'timing_advance': 63.5,
+        'fuel_level': 100,
+        'barometric_pressure': 255
+    }
+    embeddings_max = encoder.encode(max_data)
+    assert embeddings_max.shape == (1, 768)
+    
+    # Verify both are normalized
+    norm_min = torch.norm(embeddings_min, p=2, dim=1)
+    norm_max = torch.norm(embeddings_max, p=2, dim=1)
+    assert torch.allclose(norm_min, torch.ones_like(norm_min), atol=1e-5)
+    assert torch.allclose(norm_max, torch.ones_like(norm_max), atol=1e-5)
+
+
+def test_obd_data_encoder_normalization_clamping():
+    """Verify clamping to [0,1] for known PIDs and [-1,1] for unknown numeric values"""
+    encoder = OBDDataEncoder()
+    
+    # Test normalization function directly
+    obd_data = {
+        'engine_rpm': 2500,
+        'custom_param_1': 123.45,
+        'custom_param_2': -67.89
+    }
+    
+    normalized = encoder.normalize_obd_data(obd_data)
+    
+    # Known PIDs should be clamped to [0, 1]
+    # First 11 features are known PIDs
+    known_pids = normalized[0, :11]
+    assert torch.all(known_pids >= 0.0)
+    assert torch.all(known_pids <= 1.0)
+    
+    # Unknown numeric values should be clamped to [-1, 1]
+    # Remaining features are unknown numeric values
+    unknown_values = normalized[0, 11:]
+    assert torch.all(unknown_values >= -1.0)
+    assert torch.all(unknown_values <= 1.0)
+
+
+def test_obd_data_encoder_feature_padding_truncation():
+    """Test padding/truncation logic for features"""
+    encoder = OBDDataEncoder()
+    
+    # Test with very few features (should pad)
+    sparse_data = {"engine_rpm": 2500}
+    normalized_sparse = encoder.normalize_obd_data(sparse_data)
+    assert normalized_sparse.shape == (1, encoder.input_dim)
+    
+    # Test with many unknown parameters (should truncate to 10)
+    many_params = {"engine_rpm": 2500}
+    # Add 15 unknown numeric parameters
+    for i in range(15):
+        many_params[f"param_{i}"] = float(i * 10)
+    
+    normalized_many = encoder.normalize_obd_data(many_params)
+    assert normalized_many.shape == (1, encoder.input_dim)
+    # Should have 11 known PIDs + 10 unknown = 21 features, then padded to input_dim
+
+
+def test_obd_data_encoder_device_mismatch():
+    """Test device handling when input tensor is on different device"""
+    encoder = OBDDataEncoder()
+    
+    # Get the device of the encoder
+    encoder_device = next(encoder.parameters()).device
+    
+    obd_data = {"engine_rpm": 2500, "coolant_temp": 95}
+    
+    # The forward method should handle device mismatch automatically
+    # by moving features to the encoder's device
+    embeddings = encoder.encode(obd_data)
+    
+    assert embeddings.shape == (1, 768)
+    assert embeddings.device == encoder_device
+
+
+# ============================================================================
+# Additional Error Handling Tests for MultiModalEncoder
+# ============================================================================
+
+def test_multimodal_batch_size_mismatch_error():
+    """Test that ValueError is raised for incompatible batch sizes"""
+    encoder = MultiModalEncoder()
+    
+    # Batch sizes that can't be broadcast (neither is 1)
+    fault_codes = ["P0300", "P0171"]  # batch_size=2
+    obd_data = [
+        {"engine_rpm": 2500},
+        {"engine_rpm": 3000},
+        {"engine_rpm": 2000}
+    ]  # batch_size=3
+    
+    with pytest.raises(ValueError, match="Batch size mismatch"):
+        encoder.encode(fault_codes, obd_data)
+
+
+def test_multimodal_invalid_fault_code_type():
+    """Test encoder handles invalid fault_code types"""
+    encoder = MultiModalEncoder()
+    obd_data = {"engine_rpm": 2500}
+    
+    # Test with None
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(None, obd_data)
+    
+    # Test with integer
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(123, obd_data)
+    
+    # Test with list containing non-strings
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(["P0300", 123], obd_data)
+
+
+def test_multimodal_invalid_obd_data_type():
+    """Test encoder handles invalid OBD data types"""
+    encoder = MultiModalEncoder()
+    fault_codes = ["P0300"]
+    
+    # Test with string (not dict/list/None)
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(fault_codes, "not a dict")
+    
+    # Test with integer
+    with pytest.raises((TypeError, AttributeError)):
+        encoder.encode(fault_codes, 123)
+
+
+def test_multimodal_empty_fault_code_string():
+    """Test encoder handles empty string fault codes"""
+    encoder = MultiModalEncoder()
+    
+    # Test with empty string
+    embeddings = encoder.encode("", {"engine_rpm": 2500})
+    assert embeddings.shape == (1, 768)
+    assert torch.allclose(torch.norm(embeddings, p=2, dim=1), torch.ones(1), atol=1e-5)
+    
+    # Test with list containing empty strings
+    embeddings_list = encoder.encode(["", "P0300"], {"engine_rpm": 2500})
+    assert embeddings_list.shape == (2, 768)
+    
+    # Test with empty string and None OBD data (fallback)
+    embeddings_fallback = encoder.encode("", obd_data=None)
+    assert embeddings_fallback.shape == (1, 768)
+
+
+def test_multimodal_batch_broadcasting_edge_cases():
+    """Test edge cases in batch broadcasting"""
+    encoder = MultiModalEncoder()
+    
+    # Test: single fault code with batch of OBD data (should broadcast fault)
+    fault_codes_single = ["P0300"]
+    obd_data_batch = [
+        {"engine_rpm": 2500},
+        {"engine_rpm": 3000},
+        {"engine_rpm": 2000}
+    ]
+    embeddings = encoder.encode(fault_codes_single, obd_data_batch)
+    assert embeddings.shape == (3, 768)
+    
+    # Test: batch of fault codes with single OBD data (should broadcast OBD)
+    fault_codes_batch = ["P0300", "P0171", "P0420"]
+    obd_data_single = {"engine_rpm": 2500}
+    embeddings = encoder.encode(fault_codes_batch, obd_data_single)
+    assert embeddings.shape == (3, 768)
+    
+    # Test: both single (should work)
+    embeddings_both_single = encoder.encode("P0300", {"engine_rpm": 2500})
+    assert embeddings_both_single.shape == (1, 768)
+    
+    # Test: both batches of same size (should work)
+    fault_codes = ["P0300", "P0171"]
+    obd_data = [{"engine_rpm": 2500}, {"engine_rpm": 3000}]
+    embeddings = encoder.encode(fault_codes, obd_data)
+    assert embeddings.shape == (2, 768)
