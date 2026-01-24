@@ -35,11 +35,31 @@ class FaultCodeEncoder:
         # Store device as instance variable
         self.device = device
         
+        # Clear GPU cache if using CUDA
+        if device == "cuda":
+            torch.cuda.empty_cache()
+        
         try:
             self.model = SentenceTransformer(model_name, device=device)
             # E5-Mistral outputs 4096-dim, need projection layer
             self.projection = torch.nn.Linear(4096, projection_dim).to(device)
             logger.info(f"Loaded fault code encoder: {model_name} on {device}")
+        except torch.cuda.OutOfMemoryError as e:
+            logger.warning(f"CUDA out of memory loading {model_name}. Falling back to CPU: {e}")
+            # Clear cache and switch to CPU
+            if device == "cuda":
+                torch.cuda.empty_cache()
+            device = "cpu"
+            self.device = device
+            try:
+                self.model = SentenceTransformer(model_name, device=device)
+                self.projection = torch.nn.Linear(4096, projection_dim).to(device)
+                logger.info(f"Loaded fault code encoder: {model_name} on CPU (after CUDA OOM)")
+            except Exception as e2:
+                logger.warning(f"Failed to load {model_name} on CPU, falling back to all-MiniLM-L6-v2: {e2}")
+                # Fallback to smaller model
+                self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=device)
+                self.projection = torch.nn.Linear(384, projection_dim).to(device)
         except Exception as e:
             logger.warning(f"Failed to load {model_name}, falling back to all-MiniLM-L6-v2: {e}")
             # Fallback to smaller model

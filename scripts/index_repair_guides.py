@@ -25,6 +25,10 @@ import yaml
 import logging
 import numpy as np
 import torch
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,7 +88,14 @@ class RepairGuideIndexer:
         projection_dim = fault_config.get("projection_dim", 768)
         device = fault_config.get("device", "auto")
         
-        logger.info(f"Initializing encoder: {model_name} (dim={projection_dim}, device={device})")
+        # Resolve "auto" to actual device for logging
+        if device == "auto":
+            import torch
+            resolved_device = "cuda" if torch.cuda.is_available() else "cpu"
+            logger.info(f"Initializing encoder: {model_name} (dim={projection_dim}, device=auto -> {resolved_device})")
+        else:
+            logger.info(f"Initializing encoder: {model_name} (dim={projection_dim}, device={device})")
+        
         return FaultCodeEncoder(
             model_name=model_name,
             device=device,

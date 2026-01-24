@@ -707,7 +707,12 @@ class KnowledgeGraphBuilder:
             graph_to_save.add_edge(source, target, **edge_data)
         
         # Copy graph-level attributes, converting complex types to strings
+        # Also filter out NetworkX-internal attributes that might cause issues
+        skip_keys = {'node_default', 'edge_default', 'defaultedgedefault', 'defaultnodedefault'}
         for key, value in self.graph.graph.items():
+            # Skip NetworkX internal default attributes that might be strings from loaded files
+            if key in skip_keys:
+                continue
             if isinstance(value, (dict, list)):
                 graph_to_save.graph[key] = str(value)
             else:

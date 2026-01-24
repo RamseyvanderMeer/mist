@@ -7,7 +7,18 @@ vector_store:
   collection_name: repair_guides_enhanced  # Collection name in Qdrant
   distance_metric: cosine  # Distance metric: cosine, euclidean, dot
   vector_size: 768  # Embedding dimension (must match embedding output_dimension)
-  url: ./data/vector_store  # Qdrant server URL or local file path (e.g., ./data/vector_store)
+  
+  # Qdrant connection configuration
+  # For local file-based storage:
+  url: ./data/vector_store  # Local file path (e.g., ./data/vector_store)
+  
+  # For cloud Qdrant (Qdrant Cloud, self-hosted, etc.):
+  # Option 1: Set environment variables (recommended for cloud):
+  #   export QDRANT_URL=https://your-cluster.qdrant.io
+  #   export QDRANT_API_KEY=your-api-key
+  # Option 2: Uncomment and configure below:
+  # url: https://your-cluster.qdrant.io  # Cloud Qdrant URL
+  # api_key: your-api-key  # Optional: API key for cloud Qdrant (or use QDRANT_API_KEY env var)
 
 # Multi-stage retrieval parameters
 retrieval:

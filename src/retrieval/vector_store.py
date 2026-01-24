@@ -7,6 +7,7 @@ from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, Fi
 import numpy as np
 import logging
 import uuid
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,11 @@ class VectorStore:
                 - distance_metric: "cosine", "euclidean", or "dot"
                 - vector_size: Vector dimension (default: 768)
                 - url: Qdrant URL (or path for local)
+                - api_key: Optional API key for cloud Qdrant (can also use QDRANT_API_KEY env var)
+        
+        Environment Variables:
+            QDRANT_URL: Overrides config URL for cloud deployments
+            QDRANT_API_KEY: API key for cloud Qdrant (if required)
         
         Raises:
             VectorStoreConfigurationError: If configuration is invalid
@@ -79,12 +85,35 @@ class VectorStore:
             )
         
         # Initialize Qdrant client
-        url = config.get("url", "http://localhost:6333")
+        # Support environment variable override for cloud deployments
+        env_url = os.getenv("QDRANT_URL")
+        env_api_key = os.getenv("QDRANT_API_KEY")
+        url = env_url or config.get("url", "http://localhost:6333")
+        api_key = env_api_key or config.get("api_key")
+        
+        # Log which configuration source is being used
+        if env_url:
+            logger.info(f"Using QDRANT_URL from environment: {env_url}")
+            if env_api_key:
+                logger.info("Using QDRANT_API_KEY from environment")
+            else:
+                logger.info("No QDRANT_API_KEY in environment, using config or none")
+        else:
+            logger.info(f"Using Qdrant URL from config: {url}")
+            if api_key:
+                logger.info("Using QDRANT_API_KEY from config")
+        
         try:
             if url.startswith("http"):
-                self.client = QdrantClient(url=url)
+                # Cloud or remote Qdrant server
+                logger.info(f"Connecting to cloud Qdrant at: {url}")
+                if api_key:
+                    self.client = QdrantClient(url=url, api_key=api_key)
+                else:
+                    self.client = QdrantClient(url=url)
             else:
                 # Local file-based storage
+                logger.info(f"Using local Qdrant storage at: {url}")
                 self.client = QdrantClient(path=url)
         except Exception as e:
             logger.error(f"Failed to connect to Qdrant at {url}: {e}")

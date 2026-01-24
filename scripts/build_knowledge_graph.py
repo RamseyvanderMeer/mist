@@ -8,6 +8,7 @@ Usage:
 import sys
 import argparse
 from pathlib import Path
+import networkx as nx
 
 # Add project root to path so we can import from src package
 project_root = Path(__file__).parent.parent
@@ -90,16 +91,42 @@ def main():
         
         # Create builder
         builder = KnowledgeGraphBuilder(ista_db=ista_db, incremental=args.incremental)
-        
-        # Build graph
-        logger.info("Starting graph construction...")
-        graph = builder.build()
-        
+
         # Determine output path
         if args.output:
             output_path = Path(args.output)
         else:
             output_path = paths.knowledge_graph
+
+        # Incremental mode: load existing graph if present
+        if args.incremental and output_path.exists():
+            try:
+                logger.info(f"Loading existing knowledge graph from: {output_path}")
+                # GraphML load returns a Graph/DiGraph/MultiGraph depending on file contents.
+                loaded = nx.read_graphml(str(output_path))
+                # Ensure we keep a MultiDiGraph internally.
+                builder.graph = nx.MultiDiGraph(loaded)
+                
+                # Clean up problematic graph-level attributes that might be strings
+                # NetworkX's GraphML writer expects these to be dicts, not strings
+                skip_attrs = {'node_default', 'edge_default', 'defaultedgedefault', 'defaultnodedefault'}
+                for attr in skip_attrs:
+                    if attr in builder.graph.graph:
+                        del builder.graph.graph[attr]
+                
+                logger.info(
+                    f"Loaded graph with {builder.graph.number_of_nodes()} nodes and "
+                    f"{builder.graph.number_of_edges()} edges"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load existing graph for incremental build ({output_path}): {e}. "
+                    "Continuing with empty graph."
+                )
+        
+        # Build graph
+        logger.info("Starting graph construction...")
+        graph = builder.build()
         
         # Save graph
         logger.info(f"Saving knowledge graph to: {output_path}")
