@@ -1,0 +1,266 @@
+title,procedure_id,description,source
+1.0 General information,2000004257174,"Provides an overview of the repair manual's scope, safety precautions, special tool requirements, and general workshop procedures. Essential for understanding subsequent repair steps and ensuring safe, effective work.",ista_db
+1.0 General information about manual gearbox oil,2000004257336,"Covers manual gearbox oil types, specifications",ista_db
+1.0 General information on automatic transmission fluid (ATF),2000004257284,"Overview of ATF types, specifications,",ista_db
+1.0 Grease for foot controls,2000004257318,Lubricate all pivot points,ista_db
+1.0 Grease for propeller shaft (flexible disc centring and sliding piece),2000004257179,Lubricate propeller shaft flexible disc centring,ista_db
+1.0 Greasing and mounting shifting components,2000004257161,"Apply specified grease to all contact and pivot points of the shifting mechanism. Mount components, ensuring correct alignment and free movement for optimal gear engagement and smooth operation",ista_db
+1.0 Hydraulic fluid for soft top,2000004257256,Inspect and verify hydraulic fluid level for the,ista_db
+1.0 Hypoid oils for rear axle differentials X5/X6 QMVH (QMVH transmission),2000004257310,Specifies approved hypoid oil types,ista_db
+1.0 Operating fluids for clutch hydraulics/manual transmission,2000004257201,,ista_db
+1.0 Preface,2000004257251,Provides an overview of the,ista_db
+1.0 Refrigerant R134a,2000004257322,"Procedure for safe and accurate recovery,",ista_db
+1.0 Requirements made of engine coolant,2000004257280,"Engine coolant must efficiently transfer heat, prevent freezing/boiling, inhibit corrosion, lubricate water pump",ista_db
+1.0 Transmission oil for transfer box,2000004257342,Drain existing transfer box fluid.,ista_db
+1.0 Tyre fitting / paste and spray,2000004257160,Mount tyre to wheel rim using specialized equipment,ista_db
+1.0 ZF Gemmer steering,2000004257338,Inspect ZF Gemmer steering gear for leaks,ista_db
+1.1 Grease for propeller shaft inserted,2000004257235,Lubricate propeller shaft universal joints and,ista_db
+1.1 Refrigerant oil for R134a,2000004257293,"PAG or POE oil specifically formulated for R134a automotive A/C systems. Lubricates the compressor, seals,",ista_db
+10.0 Automatic transmission fluid for Jatco transmission A5S 300J (Jatco),2000004257271,"Perform ATF drain, filter replacement,",ista_db
+10.0 Danger classification,2000004257334,"Procedure to systematically identify, assess",ista_db
+11.0 Automatic transmission fluid for valve stroke values GA6HP19Z (6HP19) GA6HP26Z (6HP26) GA6HP32Z (6HP32),2000004257343,Procedure details ATF level check,ista_db
+12.0 Automatic transmission fluid for GACVT16Z (CVT) / GA6F21WA (AISIN) / GA8F22AW (AISIN) / GA8G45 (AISIN),2000004257320,"Procedure details include checking fluid level, draining",ista_db
+13.0 Automatic transmission fluid for GM transmission GA6L45R (GM6),2000004257302,"Service procedure for draining, refilling,",ista_db
+13.0 Engine oil consumption measurement,2000004257231,"Quantifies engine oil usage by precisely measuring oil level changes over a specified distance or operating period. Involves initial fill, sealing, and subsequent level checks to determine consumption rate per 1000km/miles for diagnostic purposes.",ista_db
+13.0 Engine oil consumption measurement (Rolls-Royce),2000004257262,Precisely measure engine oil level/volume at specified intervals (distance/time) to calculate consumption rate. Used to diagnose excessive oil usage or verify repair effectiveness in Rolls-Royce engines.,ista_db
+13.1 Engine oil consumption measurement (only S85 with one oil drain plug),2000004257333,Precisely measure and record initial engine,ista_db
+13.2 Engine oil consumption measurement (only S85 with two oil drain plugs),2000004257163,Accurate measurement of S,ista_db
+14.0 Automatic transmission fluid for ZF transmission GA8HP45Z / GA8HP50Z / GA8HP51Z / GA8HP70Z / GA8HP90Z / GA8P70H / GA8P75H / GA8HP75Z / GA8HP76Z / GA8HP95Z,2000004257217,"Procedure details for inspecting, draining, and",ista_db
+14.0 Test certificate for engine oil consumption,2000004257248,Procedure to accurately measure engine oil consumption over,ista_db
+15.0 Automatic transmission fluid for GM transmission GA7AHSCD (AHS-C) E72 Hybrid,2000004257281,Procedure for draining and ref,ista_db
+2.0 Approval requirements for operating fluids,2000004257227,"Details the mandatory technical specifications, certifications",ista_db
+"2.0 Change interval, coolant change and check, disposal, cleaning the cooling system",2000004257213,"Perform scheduled coolant drain, flush",ista_db
+2.0 Fuels for petrol engines,2000004257168,"Diagnosing, maintaining, and repairing",ista_db
+2.0 General information on high-temperature multipurpose grease,2000004257186,"Covers properties, specifications (e.",ista_db
+2.0 Grease for wheel centring,2000004257221,Apply a thin layer of high-temperature grease to the wheel hub's centring ring and mating,ista_db
+2.0 Handling brake fluids,2000004257228,"Proper storage, contamination prevention, and safe disposal of DOT-rated brake fluids. Emphasizes avoiding spills on painted surfaces and understanding hygroscopic properties to prevent moisture absorption and system degradation.",ista_db
+2.0 Hydraulic fluids for vehicles with self-levelling suspension,2000004257242,"Inspect, top-up, or replace",ista_db
+2.0 Oil additives,2000004257255,Introduce specified chemical compounds to engine crankcase,ista_db
+2.0 Oil grade/viscosity classification,2000004257240,Procedure to determine the correct engine oil grade,ista_db
+2.0 Output shafts,2000004257269,Remove and replace worn or damaged,ista_db
+2.0 Transmission oil for BMW manual gearboxes manufactured after 09/1997,2000004257170,Drain and refill BMW manual gearboxes (,ista_db
+2.0 Transmission oil for transfer box E46/ 16,2000004257344,Drain and refill E46 transfer,ista_db
+2.0 ZF rack-and-pinion steering,2000004257177,,ista_db
+2.0 hypoid oils for final drive without disc-type limited-slip differential (BMW/MINI),2000004257188,Specifies approved hypoid gear oils for,ista_db
+2.1 Engine oil quality,2000004257167,Inspect engine oil for proper,ista_db
+2.2 Oil additives,2000004257267,"Introduces supplemental compounds to engine oil to enhance lubrication, cleaning, and protection. Used to address specific issues like wear, leaks, or sludge buildup, improving engine longevity and performance.",ista_db
+"3.0 ATE brake cylinder paste, grease in the clutch region",2000004257353,Apply ATE brake cylinder paste,ista_db
+3.0 Approved brake fluids,2000004257194,Details manufacturer-specified brake fluid types (,ista_db
+"3.0 Automatic transmission fluid for ZF transmission 3HP22, 4HP22, 4HP22EH, 4HP24",2000004257238,"Draining, refilling, and level",ista_db
+3.0 Gearbox oil for MINI manual gearboxes,2000004257346,Drain existing manual gearbox fluid. Refill,ista_db
+3.0 General information about ZF ball nuts or rack-and-pinion power steering,2000004257351,Overview of ZF hydraulic power steering,ista_db
+3.0 Grease for wheel bearing,2000004257214,"Apply specified high-temperature,",ista_db
+3.0 Grease in the clutch region,2000004257297,Diagnose source of grease contamination,ista_db
+3.0 Hypoid oils for front axle differential with disc-type limited slip differential (M models and with SA209 self-locking differential),2000004257345,Procedure for selecting and applying specific hypoid,ista_db
+3.0 Minimum requirement - fuels for petrol engines,2000004257192,Defines minimum fuel specifications (e,ista_db
+3.0 Technically suitable engine oils for BMW Group engines,2000004257317,"Details BMW-approved engine oil specifications and technical requirements for various BMW Group engines. Covers viscosity grades, ACEA/API classifications, and BMW Longlife (LL) standards to ensure optimal engine performance and longevity.",ista_db
+3.0 Transmission oil for front axle differential,2000004257212,Drain and refill front axle,ista_db
+3.0 Wheel bearing,2000004257208,"Remove wheel, caliper, rotor, and",ista_db
+4.0 Automatic transmission fluid for ZF transmission A5S 310Z (5HP-18),2000004257244,"Perform ATF level check, drain",ista_db
+4.0 Axle transmission oils for BMW M1 M Sport Coupé,2000004257327,Procedure for draining and refilling axle,ista_db
+4.0 Brake fluid change intervals,2000004257276,"Brake fluid is hygroscopic, absorbing moisture over time. This lowers its boiling point, risking vapor lock and reduced braking efficiency under heavy use. Moisture also promotes internal corrosion of ABS unit, calipers, and master cylinder. Regular fluid replacement maintains system integrity and optimal braking performance.",ista_db
+4.0 Cleaning agent for fuel injector,2000004257232,Introduce specialized cleaning agent into fuel system to,ista_db
+4.0 Conversion tables,2000004257258,Utilize predefined conversion tables to,ista_db
+4.0 Fitting aid for rubber mount installation,2000004257162,Utilizes a specialized tool or,ista_db
+4.0 Lubricant for rubber cup installation,2000004257311,Apply specified lubricant to rubber cups prior to installation to,ista_db
+4.0 Nitrite-free radiator anti-freeze and corrosion inhibitor (BMW LC-87),2000004257220,"Drain existing coolant, flush system, and",ista_db
+4.0 Transmission oil for DKG GS7D36SG,2000004257278,Drain and refill DKG GS,ista_db
+4.0 ZF ball nut power steering with H 31 system,2000004257272,"Diagnose, repair, or replace",ista_db
+4.0 transmission fluid for manual gearboxes,2000004257292,Drain existing fluid from 4.0,ista_db
+5.0 Automatic transmission fluid for ZF transmission A5S 325Z (5HP-19),2000004257270,Draining and refilling the ZF A,ista_db
+5.0 Auxiliary brake materials,2000004257190,"Specialized components like shims, anti",ista_db
+5.0 Fuels for diesel engines,2000004257300,"Evaluates fuel quality, system",ista_db
+"5.0 Grease for flange nut and input flange, glue for threads of flange nut",2000004257326,Apply specified grease to flange nut,ista_db
+5.0 Grease for horn slip ring,2000004257176,Apply dielectric grease to the horn slip,ista_db
+5.0 transmission fluid for manual gearboxes,2000004257348,Drain existing manual transmission fluid from 5,ista_db
+6.0 Automatic transmission fluid for ZF transmission A5S 440Z (5HP-24),2000004257197,Perform ATF service for ZF A5S,ista_db
+6.0 Minimum requirements – Fuels for diesel engines,2000004257253,Defines critical fuel quality parameters,ista_db
+6.0 lubricant for rubber mount installation,2000004257303,,ista_db
+7.0 Automatic transmission fluid for ZF transmission A5S 560Z (5HP-30),2000004257282,"Procedure for inspecting, draining, and ref",ista_db
+"7.0 G30-91 Radiator antifreeze and corrosion inhibitor, nitrite-free (BMW LC-07)",2000004257254,"Drain, flush, and refill cooling",ista_db
+7.0 Winter operation with diesel fuel,2000004257193,"Ensure proper diesel fuel grade (e.g., #1-D or winterized #2-D)",ista_db
+"8.0 Automatic transmission fluid for GM transmissions A4S 310R (THM-R1), A4S 270R (THM-R1w)",2000004257273,Procedure details draining and refilling automatic transmission,ista_db
+"8.0 Cleaning agent for diesel injection system (only for M21, M41, M51)",2000004257203,Application of a specialized cleaning agent to the,ista_db
+8.0 Coolant additives,2000004257222,Evaluates and replenishes coolant additives,ista_db
+8.0 operating fluids for the SMG hydraulics* (sequential manual gearbox),2000004257223,"Procedure details checking, topping",ista_db
+9.0 Automatic transmission fluid for GM transmissions A4S 200R (GM4) / A5S 360R/390R (GM5),2000004257331,"Procedure for draining, refilling,",ista_db
+9.0 Cleaning agent for injector nozzles,2000004257224,Apply specialized chemical cleaning agent to fuel,ista_db
+9.0 Transmission oil for electric vehicles,2000004257265,"Inspect, drain, and refill specialized transmission fluid in electric vehicles. Ensure correct fluid type, viscosity, and fill level per manufacturer",ista_db
+A-Säule Störgeräusch,2000004258459,Diagnose und Behebung von Stör,ista_db
+Abdeckung Innenspiegel klirrt,2000004258485,Diagnose und Lokalisierung,ista_db
+Ablagebock klappert,2000004258452,Diagnose and rectify rattling,ista_db
+Anschlagschraube Heckmodul knarzt,2000004258488,Diagnose and lubricate/adjust the,ista_db
+Ascher Störgeräusch,2000004258445,Diagnose and rectify abnormal noise,ista_db
+Ascherdeckel klackt beim Öffnen/Schliessen,2000004258469,Diagnose und Behebung,ista_db
+BMW 1-Series E81,2000004249223,Diagnosis and repair of common faults specific to,ista_db
+BMW 1-Series E82,2000004249243,Diagnostic and repair procedures for the BMW,ista_db
+BMW 1-Series E87,2000004249229,"Comprehensive diagnostics, service, and repair procedures",ista_db
+BMW 1-Series E88,2000004249252,Accessing model-specific repair data,ista_db
+BMW 1-Series F20,2000004249199,Diagnostic and repair procedures specific to the BMW,ista_db
+BMW 1-Series F21,2000004249176,"Perform diagnostics, maintenance,",ista_db
+BMW 3-Series E36,2000004249171,"Comprehensive diagnostics, maintenance, and repair procedures",ista_db
+BMW 3-Series E36 Compact,2000004249177,,ista_db
+BMW 3-Series E46,2000004249198,"Perform diagnostics, maintenance, and repairs specific",ista_db
+BMW 3-Series E46 Compact,2000004249191,Technical overview of the BMW E4,ista_db
+BMW 3-Series E46 Saloon,2000004249256,This title refers to a,ista_db
+BMW 3-Series E90,2000004249210,Diagnosis and repair procedures specific,ista_db
+BMW 3-Series E91,2000004249212,"Comprehensive diagnosis, maintenance, and",ista_db
+BMW 3-Series E92,2000004249166,"Diagnosis, maintenance, and repair procedures specific",ista_db
+BMW 3-Series E93,2000004249249,"Perform diagnostics, maintenance, and repairs specific",ista_db
+BMW 3-Series F30,2000004249202,"Diagnosis, maintenance, and repair procedures specific",ista_db
+BMW 3-Series F31,2000004249254,This refers to the BMW 3,ista_db
+BMW 5-Series E34,2000004249197,"Comprehensive diagnostics, maintenance, and repair procedures",ista_db
+BMW 5-Series E39,2000004249224,Diagnostic and repair procedures for BMW E3,ista_db
+BMW 5-Series E60,2000004249216,Diagnosis and repair of common issues specific to,ista_db
+BMW 5-Series E61,2000004249217,Technical service and diagnostic procedures,ista_db
+BMW 5-Series F07,2000004249167,Comprehensive diagnostic and repair services for BMW,ista_db
+BMW 5-Series F10,2000004249235,Identifies the specific vehicle platform (2,ista_db
+BMW 5-Series F11,2000004249163,"General diagnostic, maintenance, or repair entry",ista_db
+BMW 6-Series E63,2000004249244,"Comprehensive diagnostics, maintenance, and",ista_db
+BMW 6-Series E64,2000004249233,"Comprehensive diagnostics, maintenance, and repair",ista_db
+BMW 6-Series F06,2000004249165,"Diagnosis, maintenance, and repair procedures",ista_db
+BMW 6-Series F12,2000004249248,"Covers diagnostic, maintenance",ista_db
+BMW 6-Series F13,2000004249184,"Diagnosis, repair, and maintenance procedures",ista_db
+BMW 7-Series E32,2000004249260,"Diagnosis, maintenance, and repair of",ista_db
+BMW 7-Series E38,2000004249237,"Diagnosis, maintenance, and repair of BMW",ista_db
+BMW 7-Series E6566,2000004249159,"Diagnosis, maintenance, and repair of",ista_db
+BMW 7-Series F01/F02,2000004249169,"Comprehensive guide covering diagnostics,",ista_db
+BMW 8-Series E31,2000004249182,Diagnosis and repair of complex electronic systems,ista_db
+BMW Active E,2000004249186,"Diagnostics, maintenance, and repair procedures specific",ista_db
+BMW Bordnetztopologiediagramm,2000004255156,Technical diagram mapping the BMW vehicle's,ista_db
+BMW F01H/F02H Active Hybrid 7 F01H/F02H,2000004249161,"Procedure covers diagnostics, maintenance, and",ista_db
+BMW F10 Active Hybrid 5 F10,2000004249231,Description: Diagnosis and repair procedures for,ista_db
+BMW F30 Active Hybrid 3 F30,2000004249208,"Perform comprehensive diagnostics, maintenance",ista_db
+BMW I01,2000004249205,"Diagnosis and repair of BMW i3 (I01) electric drivetrain, high-",ista_db
+BMW X1 E84,2000004249179,"Comprehensive diagnostic scan, fault",ista_db
+BMW X3 E83,2000004249219,Perform comprehensive diagnostic scan (ISTA/D,ista_db
+BMW X3 F25,2000004249206,Comprehensive diagnostic and repair services for BMW X,ista_db
+BMW X5 E53,2000004249227,First-generation BMW X5 (E,ista_db
+BMW X5 E70,2000004249189,Diagnosis and repair procedures specific,ista_db
+BMW X6 Active Hybrid E72,2000004249218,"Diagnosis, maintenance, and repair of BMW",ista_db
+BMW X6 E71,2000004249204,"Comprehensive diagnostics, maintenance, and repair procedures",ista_db
+BMW Z3 Coupé E36/7,2000004249160,This title designates a specific vehicle model,ista_db
+BMW Z3 Roadster E36/7,2000004249246,"Covers model-specific diagnostics,",ista_db
+BMW Z4 CoupéE86,2000004249168,Comprehensive diagnostic and repair services for BMW Z,ista_db
+BMW Z4 Roadster E85,2000004249213,Comprehensive repair and maintenance guide for the BMW,ista_db
+BMW Z4 Roadster E89,2000004249225,,ista_db
+BMW Z8 Roadster E52,2000004249188,Diagnosis and repair for the BMW Z,ista_db
+BNT-BNT-BIKE_K589ALT,2000004255182,Diagnosis and replacement of the alternator (,ista_db
+Beifahrerairbag klappert,2000004258457,Diagnose rattle source within passenger,ista_db
+Blende Bedienteile unten klappert,2000004252236,Diagnose und beheben Klapperger,ista_db
+Blende Mittelkonsole Knarzt,2000004258455,Diagnose knarzender Blende Mittel,ista_db
+Blende Mittelkonsole knarzt an der I-Tafel,2000004258441,Diagnose creak source between center,ista_db
+C-Säule Blende,2000004258487,Removal and installation of the,ista_db
+Deckel Ablagefach knarzt,2000004258464,Diagnose knarrendes Ablage,ista_db
+Deckel Handschuhkasten klappert,2000004258439,Diagnose glove box lid rattle,ista_db
+Fussraumverkleidung schwirrt,2000004258463,Diagnose and eliminate buzzing/vibration,ista_db
+GWS Störgeräusche,2000004258454,"Diagnose and rectify unusual noises emanating from the gear selector mechanism (GWS). Involves inspection for wear, loose components,",ista_db
+Gangwahlschalter P auslegen,2000004252289,"Remove and inspect the gear selector switch,",ista_db
+Gangwahlschalter P einlegen,2000004252278,Procedure involves actuating the gear selector switch,ista_db
+Gepäckraumverkleidung links klappert an Steuergerät,2000004258460,,ista_db
+Getriebe Störgeräusch,2000004258465,Diagnose and isolate source of transmission noise,ista_db
+Getränkehalter schwirrt,2000004258451,Diagnose Geräuschquelle im,ista_db
+Group 13,2000004257312,,ista_db
+Group 25,2000004257305,Accesses diagnostic functions and repair procedures,ista_db
+Group 26,2000004257330,Remove old Group 26 battery,ista_db
+Group 32,2000004257187,Addresses diagnostic and repair procedures for the **,ista_db
+Group 34,2000004257249,,ista_db
+Group 35,2000004257299,"Brake system diagnostics, component replacement",ista_db
+Group 36,2000004257204,,ista_db
+Group 37,2000004257323,"Diagnosis, repair, and maintenance",ista_db
+HVA klapperndes Geräusch,2000004252227,Diagnose und Behebung eines kl,ista_db
+Handschuhkasten Störgeräusch,2000004258470,Diagnose and eliminate extraneous,ista_db
+Handschuhkastendeckel knarzt,2000004258473,Diagnose and eliminate cre,ista_db
+Heizkanal knackt,2000004258462,Diagnose und Lokalisierung von,ista_db
+Himmelschnur schnalzt,2000004258495,Diagnose & repair headliner,ista_db
+Hinterachsgetriebe heulende Verzahnung,2000004258474,Diagnose und Behebung,ista_db
+Hochdruckpumpe quietschendes Geräusch,2000004252286,Diagnose quietschendes Ger,ista_db
+I-Tafel Kabelkanal Störgeräusch,2000004258483,Diagnose und Lokalisierung von,ista_db
+ISTA usage notes,2000004254211,Guidelines for optimal utilization of BMW,ista_db
+ISTA version 2.17 ‐ New contents for diagnosis,2000004254217,,ista_db
+ISTA version 2.18 ‐ New contents for diagnosis,2000004254246,"Details new diagnostic functionalities,",ista_db
+ISTA version 2.19 ‐ New contents for diagnosis,2000004254228,"Describes the new diagnostic functions, test plans",ista_db
+ISTA version 2.20 ‐ New contents for diagnosis,2000004254203,"Details the updated diagnostic functions, test plans",ista_db
+ISTA version 2.21 ‐ New contents for diagnosis,2000004254214,"Details new diagnostic functions, test",ista_db
+ISTA version 2.22 - New contents for diagnosis,2000004254235,Update to ISTA software version 2,ista_db
+ISTA version 2.22 ‐ New contents for diagnosis,2000004254232,"Describes the new diagnostic functionalities,",ista_db
+ISTA version 2.22 ‐ New contents for repair literature,2000004254223,Details the integration of updated,ista_db
+ISTA version 2.23 - New contents for diagnosis,2000004254238,,ista_db
+ISTA version 2.23 ‐ New contents for diagnosis,2000004254221,"Describes new diagnostic routines, updated",ista_db
+ISTA version 2.23 ‐ New contents for repair literature,2000004254242,ISTA 2.23 update integrates,ista_db
+ISTA version 2.24 ‐ New contents for diagnosis,2000004254241,Update to ISTA diagnostic software version,ista_db
+ISTA version 2.24 ‐ New contents for repair literature,2000004254202,"Update to ISTA diagnostic software,",ista_db
+ISTA version 2.25 ‐ New contents for diagnosis,2000004254239,"Details updated diagnostic routines, test plans,",ista_db
+ISTA version 2.25 ‐ New contents for repair literature,2000004254208,"Update to ISTA software, version",ista_db
+ISTA version 2.26 ‐ New contents for diagnosis,2000004254201,,ista_db
+ISTA version 2.26 ‐ New contents for repair literature,2000004254215,Update ISTA software to version 2,ista_db
+ISTA version 2.27 ‐ New contents for diagnosis,2000004254224,,ista_db
+ISTA version 2.27 ‐ New contents for repair literature,2000004254245,,ista_db
+ISTA version 2.28 ‐ New contents for diagnosis,2000004254237,Update to ISTA diagnostic software,ista_db
+ISTA version 2.28 ‐ New contents for repair literature,2000004254216,Update to ISTA diagnostic software,ista_db
+ISTA version 2.29 ‐ New contents for diagnosis,2000004254207,"Details new diagnostic procedures, test",ista_db
+ISTA version 2.29 ‐ New contents for repair literature,2000004254205,Update to ISTA version,ista_db
+ISTA version 2.30 ‐ New contents for repair literature,2000004254226,"Update to ISTA diagnostic software, version",ista_db
+ISTA version 2.31 ‐ New contents for repair literature,2000004254229,"Update to ISTA diagnostic software, version",ista_db
+ISTA version 2.32 ‐ New contents for repair literature,2000004254240,ISTA software update to version 2.,ista_db
+ISTA version 2.33 ‐ New contents for repair literature,2000004254212,,ista_db
+ISTA version 2.34 ‐ New contents for diagnosis,2000004254225,"Details new diagnostic functions, updated",ista_db
+ISTA version 2.34 ‐ New contents for repair literature,2000004254234,,ista_db
+ISTA version 4.17 - important notes on non-electrical diagnosis NED,2000004254222,Details key updates and specific instructions within IST,ista_db
+ISTA version 4.56 - Contents and notes on diagnosis,2000004254220,,ista_db
+Initialisierung Aussenspiegel,2000004252283,Performs teach-in procedure to,ista_db
+Kabel Batteriesensor klappert,2000004252235,Diagnose rattling battery sensor cable,ista_db
+Kabel Belüftungstemperatursensor klirrt,2000004258479,Diagnose rattling ventilation temperature sensor cable. Secure loose cable using appropriate fasteners or damping,ista_db
+Kabel Klimabedienteil klappert,2000004252288,Access climate control unit. Identify loose wiring,ista_db
+Kabel Rückfahrkamera klappert im Holm der Heckklappe,2000004258467,Heckklappenverkleidung dem,ista_db
+Kabel Unterdruckleitung knarzt,2000004258438,Diagnose knarzendes Gerä,ista_db
+Kabel für Fensterheber klappert,2000004252218,Diagnose Geräuschquelle,ista_db
+Kettentrieb schleifendes Geräusch,2000004258443,Diagnose Kettentrieb auf,ista_db
+Klimabedieneinheit Befestigungszapfen,2000004258472,Diagnose and replace damaged or broken,ista_db
+Kombiinstrument klappert,2000004258490,Diagnose and isolate rattle source within instrument,ista_db
+Kulisse Mittelarmlehne dröhnt,2000004252253,Diagnose und Lokalisierung der Dr,ista_db
+Leitungen Lenkung Störgeräusch,2000004258497,Diagnose and isolate noise source within steering,ista_db
+Lenkspindelmanschette quietscht,2000004252269,Diagnose squeak originating from steering,ista_db
+List of contents,2000004257306,"Details all included parts, fasteners,",ista_db
+Lüftungsgitter I-Tafel oben,2000004258493,R&R procedure for the upper instrument,ista_db
+MINI Clubman R55,2000004249187,"Perform comprehensive diagnostic scan, visual inspection,",ista_db
+MINI ConvertibleR52,2000004249221,"Diagnose, inspect, and",ista_db
+MINI ConvertibleR57,2000004249240,Perform comprehensive diagnostic scan and visual,ista_db
+MINI Countryman R60,2000004249172,Identifies the first-generation,ista_db
+MINI Coupé R58,2000004249258,"Perform comprehensive diagnostics, scheduled maintenance, or",ista_db
+MINI E,2000004249203,Diagnosis and repair of high-voltage systems,ista_db
+MINI R50,2000004249247,"Diagnose, maintain, and repair systems",ista_db
+MINI R53,2000004249220,Comprehensive diagnostic and repair services for the,ista_db
+MINI R56,2000004249170,Diagnostic and repair procedures specific to the,ista_db
+MINI R59,2000004249196,"Perform diagnostics, maintenance, and",ista_db
+Main group 00,2000004257261,General information and technical data for vehicle identification,ista_db
+Main group 11,2000004257286,Refers to repair procedures and diagnostic,ista_db
+Main group 17,2000004257175,Access and diagnose faults within the,ista_db
+Main group 21,2000004257287,"Procedures for cylinder head assembly, including",ista_db
+Main group 22,2000004257246,Diagnoses and repairs components within the suspension,ista_db
+Main group 23,2000004257226,Diagnoses and repairs issues,ista_db
+Main group 24,2000004257325,Diagnoses and repairs components,ista_db
+Main group 27,2000004257200,"Diagnosis and repair of engine electrical systems,",ista_db
+Main group 28,2000004257157,Diagnosis and repair of exhaust,ista_db
+Main group 31,2000004257198,Monitors engine misfire detection,ista_db
+Main group 33,2000004257216,Diagnosis and repair of components within the,ista_db
+Main group 64,2000004257290,Diagnoses and repairs HVAC system,ista_db
+Mittelkonsole Fahrerseite knarzt,2000004258466,Diagnose und Lokalisierung,ista_db
+Multifunktionsträger Klappert,2000004258440,Diagnose and eliminate rattling noise from the,ista_db
+Quietschen Dichtung,2000004252228,Diagnose and rectify sque,ista_db
+Radio MINI CD Störgeräusch,2000004258476,Diagnose and rectify audible interference/noise,ista_db
+Rolls-Royce vehicle programming/encoding,2000004253638,Utilizing OEM diagnostic software (,ista_db
+SMG Hydraulikpumpe n.i.O,2000004258437,Diagnose und Austausch der defekten,ista_db
+Schwingungsdämpfer quitschendes Geräusch N20,2000004252214,Diagnose and rectify squeaking noise emanating,ista_db
+Sitzneigungsverstellung quietscht,2000004258450,Diagnose squeak origin within seat,ista_db
+Spaltabdeckung Lenksäule schwirrt,2000004258435,Diagnose and secure loose steering,ista_db
+Spurstangengelenk Spiel prüfen,2000004252277,Visuell und manuell das,ista_db
+Steuerkette Rasselgeräusch nach Kaltstart,2000004258436,,ista_db
+Störgeräusch Lenksäulenverstellung,2000004258499,Diagnose und isoliere,ista_db
+Taste Handschukasten Störgeräusch,2000004258494,Diagnose and rectify noise originating from glove,ista_db
+Unterdruckpumpe klopfendes Geräusch,2000004258453,Diagnose vacuum pump for internal,ista_db
+Verriegelungsbolzen DS2 zu DS3 hat Spiel,2000004258442,Diagnose und Behebung von Spiel im,ista_db
+Wastegate-Ventil rasseln N13,2000004252220,Diagnose N13 wastegate rattle,ista_db
+Zahnstange Spiel prüfen,2000004252252,Inspect steering rack for excessive play by,ista_db
+Zentrierbolzen klappert,2000004258446,"Diagnose rattling centering pin, typically",ista_db
+Ölpumpen schnarrendes Geräusch N13,2000004258475,Diagnose N13 engine for,ista_db

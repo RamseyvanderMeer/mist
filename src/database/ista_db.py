@@ -129,6 +129,45 @@ class IstaDatabase:
             logger.error(f"Error querying fault code {code}: {e}")
             raise
     
+    def get_all_fault_codes(
+        self,
+        code_pattern: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> List[str]:
+        """
+        Get all distinct fault codes from the database.
+        
+        Args:
+            code_pattern: Optional SQL LIKE pattern to filter codes (e.g., "P%" for
+                         standard OBD-II P-codes only). If None, returns all codes.
+            limit: Optional maximum number of codes to return. If None, returns all.
+        
+        Returns:
+            List of fault code strings (e.g., ["P0300", "P0301", "2A87"])
+        """
+        try:
+            with self._connection.session() as session:
+                sql = "SELECT DISTINCT CODE FROM XEP_FAULTCODES WHERE CODE IS NOT NULL AND CODE != ''"
+                params: Dict[str, Any] = {}
+                if code_pattern:
+                    sql += " AND CODE LIKE :pattern"
+                    params["pattern"] = code_pattern
+                sql += " ORDER BY CODE"
+                if limit:
+                    sql += " LIMIT :limit"
+                    params["limit"] = limit
+                result = session.execute(text(sql), params)
+                rows = result.fetchall()
+                codes = []
+                for row in rows:
+                    code = row[0] if isinstance(row, tuple) else getattr(row, "CODE", None)
+                    if code:
+                        codes.append(str(code))
+                return codes
+        except Exception as e:
+            logger.error(f"Error fetching fault codes: {e}")
+            raise
+    
     def get_fault_labels(self, fault_code_id: str) -> List[Dict[str, Any]]:
         """
         Get fault code labels/descriptions by fault code ID.

@@ -1,0 +1,8 @@
+# Scraper-specific dependencies (extends requirements.txt)
+scrapy>=2.11.0
+beautifulsoup4>=4.12.0
+google-generativeai>=0.3.0
+psycopg2-binary>=2.9.9
+pgvector>=0.2.4
+google-cloud-storage>=2.14.0
+cloud-sql-python-connector>=1.4.0
