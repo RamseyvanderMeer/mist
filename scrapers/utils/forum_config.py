@@ -396,7 +396,7 @@ FORUM_CONFIGS = {
     "bimmerforums": {
         "platform": "vbulletin",
         "base": "https://www.bimmerforums.com",
-        "search_url": None,
+        "search_url": "https://www.bimmerforums.com/?s={code}",
         "thread_pattern": "showthread",
         "forum_urls": [
             "https://www.bimmerforums.com/forum/forumdisplay.php?240-2006-2013-(E90-E91-E92-E93)",
@@ -404,7 +404,7 @@ FORUM_CONFIGS = {
             "https://www.bimmerforums.com/forum/forumdisplay.php?208-2002-2008-(E65-E66)",
         ],
         "pagination": "page={n}",
-        "supports_search": False,
+        "supports_search": True,
     },
     "oemdtc": {
         "platform": "wordpress",
