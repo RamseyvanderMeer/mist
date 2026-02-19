@@ -5,11 +5,13 @@ Scrapes BimmerFest (XenForo), E90Post (vBulletin), and similar forums for fault 
 OBD data, vehicle context, and repair summaries.
 
 Supports: search-based discovery, fault-code search per forum, pagination, skip-already-parsed.
+Tracks which (forum, code) search combinations have been completed for resumable --search-codes runs.
 """
 import json
 import logging
 import re
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import scrapy
 
@@ -17,6 +19,8 @@ from scrapers.spiders.base import MistBaseSpider, merge_text
 from scrapers.utils.forum_config import FAULT_CODES_TO_SEARCH, FORUM_CONFIGS
 
 logger = logging.getLogger(__name__)
+
+SEARCH_PROGRESS_FILENAME = "search_progress.jsonl"
 
 # Fault code pattern for title filtering
 FAULT_CODE_PATTERN = re.compile(r"\b(P[0-9]{4}|[0-9A-Z]{4,5})\b", re.IGNORECASE)
@@ -51,15 +55,90 @@ TITLE_FIX_KEYWORDS = {
 }
 
 
-def _build_start_urls(use_search: bool, use_targeted: bool, use_search_codes: bool) -> list[str]:
+def _extract_search_forum_code(url: str) -> tuple[str, str] | None:
+    """Extract (forum_name, fault_code) from a search URL, or None if not a search URL."""
+    try:
+        parsed = urlparse(url)
+        netloc = parsed.netloc.lower()
+        forum = None
+        if "bimmerfest.com" in netloc:
+            forum = "bimmerfest"
+        elif "bimmerownersclub.com" in netloc:
+            forum = "bimmerownersclub"
+        elif "oemdtc.com" in netloc:
+            forum = "oemdtc"
+        if not forum:
+            return None
+        qs = parse_qs(parsed.query)
+        # BimmerFest: keywords=P0300
+        if "keywords" in qs and qs["keywords"]:
+            return (forum, qs["keywords"][0].strip().upper())
+        # BimmerOwnersClub: q=P0300
+        if "q" in qs and qs["q"]:
+            return (forum, qs["q"][0].strip().upper())
+        # OEMDTC: s=P0300
+        if "s" in qs and qs["s"]:
+            return (forum, qs["s"][0].strip().upper())
+    except Exception:
+        pass
+    return None
+
+
+def _load_searched_codes(output_dir: Path) -> set[tuple[str, str]]:
+    """Load (forum, code) pairs that have already been searched."""
+    seen = set()
+    path = Path(output_dir) / SEARCH_PROGRESS_FILENAME
+    if not path.exists():
+        return seen
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                    forum = rec.get("forum")
+                    code = rec.get("code")
+                    if forum and code:
+                        seen.add((forum, code.upper()))
+                except json.JSONDecodeError:
+                    continue
+    except (OSError, UnicodeDecodeError) as e:
+        logger.debug("Could not load search progress: %s", e)
+    return seen
+
+
+def _save_searched_code(output_dir: Path, forum: str, code: str) -> None:
+    """Append a (forum, code) pair to search progress file."""
+    path = Path(output_dir) / SEARCH_PROGRESS_FILENAME
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"forum": forum, "code": code.upper()}) + "\n")
+    except OSError as e:
+        logger.warning("Could not save search progress: %s", e)
+
+
+def _build_start_urls(
+    use_search: bool,
+    use_targeted: bool,
+    use_search_codes: bool,
+    searched_codes: set[tuple[str, str]] | None = None,
+) -> list[str]:
     """Build start URLs from forum configs (interleaved for round-robin)."""
     from itertools import zip_longest
+
+    searched_codes = searched_codes or set()
 
     if use_search_codes:
         lists_of_urls = []
         for name, cfg in FORUM_CONFIGS.items():
             if cfg.get("supports_search") and cfg.get("search_url"):
-                forum_urls = [cfg["search_url"].format(code=code) for code in FAULT_CODES_TO_SEARCH]
+                forum_urls = [
+                    cfg["search_url"].format(code=code)
+                    for code in FAULT_CODES_TO_SEARCH
+                    if (name, code.upper()) not in searched_codes
+                ]
                 lists_of_urls.append(forum_urls)
         
         # Interleave URLs: [ForumA-1, ForumB-1, ForumA-2, ForumB-2, ...]
@@ -195,6 +274,7 @@ class ForumSpider(MistBaseSpider):
         "reddit.com",
         "old.reddit.com",
         "bimmerownersclub.com",
+        "oemdtc.com",
     ]
     start_urls = []  # Set in __init__ via _build_start_urls
 
@@ -211,6 +291,7 @@ class ForumSpider(MistBaseSpider):
     ):
         super().__init__(*args, **kwargs)
         self._seen_urls: set[str] = set()
+        self._output_dir = Path(output_dir) if output_dir else None
 
         if output_dir and not re_scrape:
             self._seen_urls = _load_seen_urls(Path(output_dir))
@@ -221,7 +302,10 @@ class ForumSpider(MistBaseSpider):
         if start_url:
             self.start_urls = [start_url]
         else:
-            self.start_urls = _build_start_urls(use_search, use_targeted, use_search_codes)
+            searched_codes = _load_searched_codes(self._output_dir or Path(".")) if use_search_codes else set()
+            if searched_codes:
+                logger.info("Skipping %d already-searched (forum, code) pairs", len(searched_codes))
+            self.start_urls = _build_start_urls(use_search, use_targeted, use_search_codes, searched_codes)
             if use_search_codes:
                 logger.info("Using fault-code search (%d URLs)", len(self.start_urls))
             elif use_search or use_targeted:
@@ -230,8 +314,10 @@ class ForumSpider(MistBaseSpider):
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
         spider = super().from_crawler(crawler, *args, **kwargs)
-        output_dir = crawler.settings.get("MIST_RAW_DATA_DIR", "data/training/raw_data")
-        spider._seen_urls = _load_seen_urls(Path(output_dir))
+        output_dir = Path(crawler.settings.get("MIST_RAW_DATA_DIR", "data/training/raw_data"))
+        if spider._output_dir is None:
+            spider._output_dir = output_dir
+        spider._seen_urls = _load_seen_urls(output_dir)
         if spider._seen_urls:
             logger.info("Loaded %d already-parsed URLs to skip", len(spider._seen_urls))
         return spider
@@ -261,10 +347,45 @@ class ForumSpider(MistBaseSpider):
             return self.parse_xenforo_forum(response)
         if "bimmerownersclub.com" in url:
             return self.parse_invision_forum(response)
+        if "oemdtc.com" in url:
+            return self.parse_wordpress_blog(response)
         return self.parse(response)
 
+    def parse_wordpress_blog(self, response):
+        """Parse OEMDTC (WordPress) blog listing or search results."""
+        # Record search progress when this is a search results page
+        if self._output_dir:
+            extracted = _extract_search_forum_code(response.url)
+            if extracted:
+                forum, code = extracted
+                _save_searched_code(self._output_dir, forum, code)
+        # Find article links
+        for href in response.css("h2.entry-title a, .post-title a"):
+            url = response.urljoin(href.attrib.get("href", ""))
+            title = " ".join(href.css("::text").getall() or []).strip()
+            if not url:
+                continue
+            norm = self._normalize_url(url)
+            if norm in self._seen_urls:
+                continue
+            # OEMDTC is dedicated to codes, so we accept almost all links, but check title for relevance
+            if _title_suggests_fault_content(title) or "dtc" in url or "code" in url:
+                self._seen_urls.add(norm)
+                yield response.follow(url, self.parse_thread, dont_filter=True)
+                
+        # Pagination
+        next_sel = response.css(".nav-links a.next::attr(href), .pagination a.next::attr(href)").get()
+        if next_sel:
+            yield response.follow(next_sel, self.parse_wordpress_blog, dont_filter=True)
+
     def parse_invision_forum(self, response):
-        """Parse Invision Community forum listing."""
+        """Parse Invision Community forum listing or search results."""
+        # Record search progress when this is a search results page
+        if self._output_dir:
+            extracted = _extract_search_forum_code(response.url)
+            if extracted:
+                forum, code = extracted
+                _save_searched_code(self._output_dir, forum, code)
         # Thread links: a[href*='/topic/']
         for href in response.css("a[href*='/topic/']"):
             url = response.urljoin(href.attrib.get("href", ""))
@@ -287,6 +408,12 @@ class ForumSpider(MistBaseSpider):
 
     def parse_xenforo_search(self, response):
         """Parse BimmerFest search results - extract thread links."""
+        # Record search progress (BimmerFest search URLs always have keywords=)
+        if self._output_dir:
+            extracted = _extract_search_forum_code(response.url)
+            if extracted:
+                forum, code = extracted
+                _save_searched_code(self._output_dir, forum, code)
         # Links: a[href*='threads/'] - exclude /post- fragment for base thread URL
         for href in response.css("a[href*='threads/']"):
             url = response.urljoin(href.attrib.get("href", ""))

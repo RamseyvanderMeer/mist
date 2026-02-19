@@ -393,4 +393,28 @@ FORUM_CONFIGS = {
         "pagination": "page/{n}/",  # /page/2/
         "supports_search": True,
     },
+    "bimmerforums": {
+        "platform": "vbulletin",
+        "base": "https://www.bimmerforums.com",
+        "search_url": None,
+        "thread_pattern": "showthread",
+        "forum_urls": [
+            "https://www.bimmerforums.com/forum/forumdisplay.php?240-2006-2013-(E90-E91-E92-E93)",
+            "https://www.bimmerforums.com/forum/forumdisplay.php?319-2012-(F30)",
+            "https://www.bimmerforums.com/forum/forumdisplay.php?208-2002-2008-(E65-E66)",
+        ],
+        "pagination": "page={n}",
+        "supports_search": False,
+    },
+    "oemdtc": {
+        "platform": "wordpress",
+        "base": "https://oemdtc.com",
+        "search_url": "https://oemdtc.com/?s={code}",
+        "thread_pattern": r"/\d+/",  # Matches /12345/slug
+        "forum_urls": [
+            "https://oemdtc.com/category/bmw",
+        ],
+        "pagination": "page/{n}/",
+        "supports_search": True,
+    },
 }

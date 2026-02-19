@@ -54,3 +54,12 @@ LLM_PREFILTER_ENABLED = True  # Skip LLM when no fault codes/repair-like text (s
 
 # Postgres (for PostgresWriterPipeline)
 DATABASE_URL = os.environ.get("DATABASE_URL")
+
+# Proxy (Smart fallback)
+SCRAPERAPI_KEY = os.environ.get("SCRAPERAPI_KEY")
+if SCRAPERAPI_KEY:
+    # Use SmartProxyMiddleware for selective proxy usage on 403/429
+    DOWNLOADER_MIDDLEWARES["scrapers.middlewares.SmartProxyMiddleware"] = 610
+    # Note: We keep standard concurrency/delay settings to be polite for direct requests.
+    # The middleware handles retrying with proxy only when needed.
+
