@@ -25,31 +25,55 @@ TITLE_KEYWORDS = {
     "check engine", "cel", "fault code", "obd", "code", "diagnostic",
     "misfire", "error", "dtc", "trouble code", "engine light", "abs",
     "transmission", "limp mode", "stalling", "rough idle",
+    # Expanded keywords
+    "symptom", "problem", "issue", "fail", "failing", "broken", "bad",
+    "wont start", "no start", "crank", "cranking",
+    "noise", "rattle", "whine", "clunk", "leak", "smoke", "overheat",
+    "vibration", "shake", "shaking", "hesitate", "hesitation",
+    "power loss", "loss of power", "sluggish", "surge", "surging",
+    "rough run", "running rough", "jerk", "jerking",
+    "warning", "message", "malfunction",
 }
 # Keywords suggesting a confirmed fix (prioritize these - higher likelihood of extractable data)
 TITLE_FIX_KEYWORDS = {
     "fixed", "solved", "replaced", "installed", "repaired", "cleaned",
     "rebuilt", "fixed it", "that fixed", "fixed the", "problem solved",
     "issue resolved", "fixed my", "replacement", "fix for",
+    # Expanded keywords
+    "solution", "success", "update", "finally", "sorted", "resolved",
+    "changed", "swapped", "new part",
+    # Gratitude (often indicates a solution was provided)
+    "thanks", "thank you", "appreciated", "cheers", "kudos",
+    # Technical fix/procedure keywords
+    "diy", "guide", "tutorial", "how to", "how-to", "retrofit", "coding",
+    "programmed", "flashed", "registered", "calibrated", "adapted",
+    "reset", "procedure", "instructions",
 }
 
 
 def _build_start_urls(use_search: bool, use_targeted: bool, use_search_codes: bool) -> list[str]:
-    """Build start URLs from forum configs."""
+    """Build start URLs from forum configs (interleaved for round-robin)."""
+    from itertools import zip_longest
+
     if use_search_codes:
-        urls = []
+        lists_of_urls = []
         for name, cfg in FORUM_CONFIGS.items():
             if cfg.get("supports_search") and cfg.get("search_url"):
-                for code in FAULT_CODES_TO_SEARCH:
-                    urls.append(cfg["search_url"].format(code=code))
-        if urls:
-            return urls
-    # Fallback to forum listing URLs
-    urls = []
+                forum_urls = [cfg["search_url"].format(code=code) for code in FAULT_CODES_TO_SEARCH]
+                lists_of_urls.append(forum_urls)
+        
+        # Interleave URLs: [ForumA-1, ForumB-1, ForumA-2, ForumB-2, ...]
+        if lists_of_urls:
+            return [u for group in zip_longest(*lists_of_urls) for u in group if u]
+            
+    # Fallback to forum listing URLs (interleaved)
+    lists_of_urls = []
     for name, cfg in FORUM_CONFIGS.items():
-        urls.extend(cfg["forum_urls"])
+        lists_of_urls.append(cfg["forum_urls"])
+        
     if use_search or use_targeted:
-        return urls
+        return [u for group in zip_longest(*lists_of_urls) for u in group if u]
+
     # Default: E90Post + BimmerFest main
     return [
         "https://www.e90post.com/forums/forumdisplay.php?f=2",
@@ -170,6 +194,7 @@ class ForumSpider(MistBaseSpider):
         "bimmerpost.com",
         "reddit.com",
         "old.reddit.com",
+        "bimmerownersclub.com",
     ]
     start_urls = []  # Set in __init__ via _build_start_urls
 
@@ -231,7 +256,31 @@ class ForumSpider(MistBaseSpider):
         url = response.url
         if "bimmerfest.com" in url:
             return self.parse_xenforo_forum(response)
+        if "bimmerownersclub.com" in url:
+            return self.parse_invision_forum(response)
         return self.parse(response)
+
+    def parse_invision_forum(self, response):
+        """Parse Invision Community forum listing."""
+        # Thread links: a[href*='/topic/']
+        for href in response.css("a[href*='/topic/']"):
+            url = response.urljoin(href.attrib.get("href", ""))
+            # Strip query params/fragments
+            url = url.split("?")[0].split("#")[0]
+            title = " ".join(href.css("::text").getall() or []).strip()
+            if not url or "/topic/" not in url:
+                continue
+            norm = self._normalize_url(url)
+            if norm in self._seen_urls:
+                continue
+            if _title_suggests_fault_content(title):
+                self._seen_urls.add(norm)
+                yield response.follow(url, self.parse_thread, dont_filter=True)
+        
+        # Pagination: a[rel='next']
+        next_sel = response.css("a[rel='next']::attr(href)").get()
+        if next_sel:
+            yield response.follow(next_sel, self.parse_invision_forum, dont_filter=True)
 
     def parse_xenforo_search(self, response):
         """Parse BimmerFest search results - extract thread links."""
@@ -347,9 +396,9 @@ class ForumSpider(MistBaseSpider):
         """Parse thread page - extract content for LLM analysis."""
         # Note: We don't check seen_urls here - we only queue URLs not in seen_urls,
         # and we add to seen_urls when we queue, so we never process duplicates.
-        # vBulletin: .block-body, .postbody; XenForo: .message-body, .bbWrapper
+        # vBulletin: .block-body, .postbody; XenForo: .message-body, .bbWrapper; Invision: .ipsType_normal
         content_blocks = response.css(
-            "main, article, [role='main'], .block-body, .postbody, .message-body, .bbWrapper"
+            "main, article, [role='main'], .block-body, .postbody, .message-body, .bbWrapper, .ipsType_normal, .cPost_contentWrap"
         )
         if not content_blocks:
             content_blocks = response.css("body")

@@ -38,6 +38,8 @@ DOWNLOADER_MIDDLEWARES = {
 USER_AGENT = "MIST-Scraper/1.0 (+https://github.com/mist-diagnostics; research)"
 
 # MIST-specific settings
+CONCURRENT_REQUESTS_PER_DOMAIN = 2  # Limit per-domain concurrency to avoid bans
+RANDOMIZE_DOWNLOAD_DELAY = True     # Randomize delay (0.5 * DOWNLOAD_DELAY to 1.5 * DOWNLOAD_DELAY)
 MIST_MIN_QUALITY = 0.6
 MIST_RAW_DATA_DIR = "data/training/raw_data"
 # Doc spider: SQL LIKE pattern for fault codes from DB. "P%" = OBD-II P-codes only; "" = all codes
