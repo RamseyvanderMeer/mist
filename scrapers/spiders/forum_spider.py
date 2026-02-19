@@ -204,6 +204,7 @@ class ForumSpider(MistBaseSpider):
         use_search=False,
         use_targeted=False,
         use_search_codes=False,
+        re_scrape=False,
         output_dir=None,
         *args,
         **kwargs,
@@ -211,9 +212,11 @@ class ForumSpider(MistBaseSpider):
         super().__init__(*args, **kwargs)
         self._seen_urls: set[str] = set()
 
-        if output_dir:
+        if output_dir and not re_scrape:
             self._seen_urls = _load_seen_urls(Path(output_dir))
             logger.info("Loaded %d already-parsed URLs to skip", len(self._seen_urls))
+        elif re_scrape:
+            logger.info("Re-scrape enabled: ignoring previously seen URLs")
 
         if start_url:
             self.start_urls = [start_url]

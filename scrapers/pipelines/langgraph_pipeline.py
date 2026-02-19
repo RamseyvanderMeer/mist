@@ -114,8 +114,9 @@ class LLMExtractionPipeline:
                 import google.generativeai as genai
 
                 genai.configure(api_key=self._api_key)
-                self._model = genai.GenerativeModel("gemini-2.0-flash")
-                logger.info("LLM extraction enabled (Gemini)")
+                model_name = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
+                self._model = genai.GenerativeModel(model_name)
+                logger.info("LLM extraction enabled (Gemini %s)", model_name)
             except Exception as e:
                 logger.warning("LLM extraction disabled: %s", e)
                 self._model = None

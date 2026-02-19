@@ -47,6 +47,7 @@ MIST_DOC_CODE_PATTERN = "P%"
 
 # LLM extraction (Gemini)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 LLM_EXTRACTION_ENABLED = True
 LLM_MIN_CONFIDENCE = 0.8
 LLM_PREFILTER_ENABLED = True  # Skip LLM when no fault codes/repair-like text (saves tokens)

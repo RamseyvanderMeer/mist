@@ -96,6 +96,11 @@ def main():
         action="store_true",
         help="Search each fault code (P0300, 2A87, etc.) on every forum that supports search",
     )
+    parser.add_argument(
+        "--re-scrape",
+        action="store_true",
+        help="Ignore previously scraped URLs (re-process them)",
+    )
     args = parser.parse_args()
 
     from scrapy.crawler import CrawlerProcess
@@ -124,6 +129,7 @@ def main():
                 crawl_kwargs["use_search"] = args.search
                 crawl_kwargs["use_targeted"] = args.targeted
                 crawl_kwargs["use_search_codes"] = args.search_codes
+                crawl_kwargs["re_scrape"] = args.re_scrape
             crawl_kwargs["output_dir"] = str(args.output_dir)
         process.crawl(spider_cls, **crawl_kwargs)
         process.start()

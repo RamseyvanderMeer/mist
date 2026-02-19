@@ -139,6 +139,10 @@ class PostgresWriterPipeline:
                             llm_confidence = EXCLUDED.llm_confidence,
                             repair_guide = EXCLUDED.repair_guide,
                             timestamp = EXCLUDED.timestamp
+                        WHERE
+                            EXCLUDED.confidence_score > scraped_records.confidence_score
+                            OR (scraped_records.outcome IS DISTINCT FROM 'success' AND EXCLUDED.outcome = 'success')
+                            OR (scraped_records.repair_summary IS NULL AND EXCLUDED.repair_summary IS NOT NULL)
                     """),
                     {
                         "source_url": source_url,
