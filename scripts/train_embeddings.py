@@ -63,6 +63,13 @@ def main():
         choices=["auto", "cuda", "cpu"],
         help="Device to use for training (default: auto-detect)"
     )
+    parser.add_argument(
+        "--data-source",
+        type=str,
+        default=None,
+        choices=["db", "feedback", "both"],
+        help="Data source: db (scraped_records), feedback (SQLite), or both. Default: db when DATABASE_URL set, else feedback"
+    )
     
     args = parser.parse_args()
     
@@ -140,8 +147,13 @@ def main():
         logger.info(f"Training config: {training_config_path}")
         logger.info(f"Embedding config: {embedding_config_path}")
         logger.info(f"Checkpoint directory: {trainer.checkpoint_dir}")
+        if args.data_source:
+            logger.info(f"Data source: {args.data_source}")
         
-        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        trainer.train(
+            resume_from_checkpoint=resume_from_checkpoint,
+            data_source=args.data_source
+        )
         
         logger.info("Training completed successfully")
         

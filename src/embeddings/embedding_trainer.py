@@ -1,6 +1,11 @@
 """
 Embedding fine-tuning pipeline with contrastive learning.
+
+Supports data_source: db (scraped_records), feedback (SQLite), or both.
+When DATABASE_URL is set, db is the default.
 """
+import os
+import json
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -234,112 +239,200 @@ class EmbeddingTrainer:
         
         return None
     
+    def _load_scraped_pairs_from_db(self, db_url: str) -> List[Dict[str, Any]]:
+        """Load (fault_codes, repair_summary, matched_guide_id) from scraped_records."""
+        from sqlalchemy import create_engine, text
+        data_source_config = self.config.get("data_source", {})
+        min_confidence = data_source_config.get("scraped_min_confidence", 0.7)
+        outcomes = data_source_config.get("scraped_outcomes", ["success", "partial"])
+        outcomes_sql = ", ".join(f"'{o}'" for o in outcomes)
+        engine = create_engine(db_url)
+        pairs = []
+        with engine.connect() as conn:
+            result = conn.execute(
+                text(f"""
+                    SELECT source_url, fault_codes, repair_summary, matched_guide_id, matched_guide_title, symptoms, record_type
+                    FROM scraped_records
+                    WHERE outcome IN ({outcomes_sql})
+                      AND (confidence_score IS NULL OR confidence_score >= :min_conf)
+                      AND repair_summary IS NOT NULL
+                      AND (fault_codes IS NOT NULL AND fault_codes::text NOT IN ('[]', 'null')
+                           OR record_type = 'cause_to_solution')
+                """),
+                {"min_conf": min_confidence}
+            )
+            columns = result.keys()
+            for row in result:
+                rec = dict(zip(columns, row))
+                fault_codes = rec.get("fault_codes")
+                if isinstance(fault_codes, str):
+                    try:
+                        fault_codes = json.loads(fault_codes) if fault_codes else []
+                    except json.JSONDecodeError:
+                        fault_codes = []
+                if not isinstance(fault_codes, list):
+                    fault_codes = []
+                if not fault_codes and rec.get("record_type") != "cause_to_solution":
+                    continue
+                pairs.append({
+                    "fault_codes": fault_codes,
+                    "repair_summary": rec.get("repair_summary") or "",
+                    "matched_guide_id": rec.get("matched_guide_id"),
+                    "matched_guide_title": rec.get("matched_guide_title"),
+                    "source_url": rec.get("source_url"),
+                    "symptoms": rec.get("symptoms"),
+                    "record_type": rec.get("record_type", "fault_code"),
+                })
+        return pairs
+    
     def create_dataset(
         self,
-        min_feedback_samples: Optional[int] = None
+        min_feedback_samples: Optional[int] = None,
+        data_source: Optional[str] = None
     ) -> Tuple[ContrastiveFeedbackDataset, ContrastiveFeedbackDataset]:
         """
-        Create training and validation datasets from feedback data.
-        
-        Queries feedback sessions, creates embeddings, and generates
-        positive/negative pairs for contrastive learning.
+        Create training and validation datasets.
         
         Args:
             min_feedback_samples: Minimum number of samples required.
-                If None, uses config value.
+            data_source: "db" | "feedback" | "both". Default: "db" when DATABASE_URL set, else "feedback".
         
         Returns:
             Tuple of (train_dataset, val_dataset)
-        
-        Raises:
-            ValueError: If insufficient feedback data
-            RuntimeError: If dataset creation fails
         """
         fine_tuning_config = self._get_fine_tuning_config()
+        data_source_config = self.config.get("data_source", {})
+        default_src = data_source_config.get("default", "feedback")
+        db_url = os.environ.get("DATABASE_URL", "")
+        if data_source is None:
+            data_source = "db" if (db_url and db_url.startswith("postgresql")) else default_src
         min_samples = min_feedback_samples or fine_tuning_config.get("min_feedback_samples", 10)
         validation_split = fine_tuning_config.get("validation_split", 0.2)
         
-        # Query feedback sessions with selected guides
-        # Collect session data while in session context to avoid detached instance errors
-        session_data_list = []
-        try:
-            connection = create_connection(self.feedback_collector.db_path)
-            with connection.session() as session:
-                # Get sessions with selected_guide
-                sessions = session.query(FeedbackSession).filter(
-                    FeedbackSession.selected_guide.isnot(None),
-                    FeedbackSession.selected_guide != ""
-                ).all()
-                
-                # Extract data while still in session context
-                for feedback_session in sessions:
-                    session_data_list.append({
-                        "fault_codes": feedback_session.get_fault_codes(),
-                        "obd_data": feedback_session.get_obd_data(),
-                        "selected_guide": feedback_session.selected_guide,
-                        "recommended_guides": feedback_session.get_recommended_guides(),
-                        "session_id": feedback_session.session_id
-                    })
-        except Exception as e:
-            raise RuntimeError(f"Failed to query feedback sessions: {e}") from e
-        
-        if len(session_data_list) < min_samples:
-            raise ValueError(
-                f"Insufficient feedback data: {len(session_data_list)} sessions "
-                f"(minimum {min_samples} required)"
-            )
-        
-        logger.info(f"Found {len(session_data_list)} feedback sessions with selected guides")
-        
-        # Create embeddings and pairs
         anchors = []
         positives = []
         negatives_list = []
         
-        self.encoder.eval()
-        with torch.no_grad():
-            for session_data in session_data_list:
-                try:
-                    # Get session data
-                    fault_codes = session_data["fault_codes"]
-                    obd_data = session_data["obd_data"]
-                    selected_guide = session_data["selected_guide"]
-                    recommended_guides = session_data["recommended_guides"]
-                    
-                    if not fault_codes or not selected_guide:
+        if data_source in ("db", "both") and db_url and db_url.startswith("postgresql"):
+            scraped_pairs = self._load_scraped_pairs_from_db(db_url)
+            logger.info(f"Loaded {len(scraped_pairs)} scraped pairs from DB")
+            self.encoder.eval()
+            with torch.no_grad():
+                for i, pair in enumerate(scraped_pairs):
+                    try:
+                        fault_codes = pair["fault_codes"]
+                        repair_summary = pair["repair_summary"]
+                        if not repair_summary or (not fault_codes and data_source != "both"):
+                            continue
+                        fault_codes_str = ", ".join(fault_codes) if fault_codes else ""
+                        if not fault_codes_str:
+                            fault_codes_str = (pair.get("symptoms") or "")[:500] or "symptoms"
+                        anchor = self.encoder.encode(fault_codes_str, obd_data=None)
+                        anchor = anchor.squeeze(0) if anchor.dim() > 1 else anchor
+                        positive = self._get_guide_embedding(
+                            pair.get("matched_guide_id") or "",
+                            guide_text=pair.get("matched_guide_title") or repair_summary
+                        )
+                        if positive is None:
+                            positive = self.encoder.encode(repair_summary[:2000], obd_data=None)
+                            positive = positive.squeeze(0) if positive.dim() > 1 else positive
+                        negs = []
+                        my_fc = set(fault_codes or [])
+                        for j, other in enumerate(scraped_pairs):
+                            if j == i:
+                                continue
+                            other_fc = set(other.get("fault_codes") or [])
+                            if my_fc and other_fc and not my_fc.intersection(other_fc):
+                                p = self._get_guide_embedding(
+                                    other.get("matched_guide_id") or "",
+                                    guide_text=other.get("matched_guide_title") or other.get("repair_summary", "")
+                                )
+                                if p is None:
+                                    p = self.encoder.encode((other.get("repair_summary") or "")[:2000], obd_data=None)
+                                    p = p.squeeze(0) if p.dim() > 1 else p
+                                negs.append(p)
+                                if len(negs) >= 5:
+                                    break
+                            elif not my_fc and not other_fc:
+                                p = self._get_guide_embedding(
+                                    other.get("matched_guide_id") or "",
+                                    guide_text=other.get("matched_guide_title") or other.get("repair_summary", "")
+                                )
+                                if p is None:
+                                    p = self.encoder.encode((other.get("repair_summary") or "")[:2000], obd_data=None)
+                                    p = p.squeeze(0) if p.dim() > 1 else p
+                                negs.append(p)
+                                if len(negs) >= 5:
+                                    break
+                        if negs:
+                            anchors.append(anchor)
+                            positives.append(positive)
+                            negatives_list.append(negs)
+                    except Exception as e:
+                        logger.debug(f"Error processing scraped pair: {e}")
                         continue
-                    
-                    # Create query embedding (anchor)
-                    fault_codes_str = ", ".join(fault_codes) if isinstance(fault_codes, list) else str(fault_codes)
-                    query_embedding = self.encoder.encode(
-                        fault_codes_str,
-                        obd_data=obd_data if obd_data else None
-                    )
-                    query_embedding = query_embedding.squeeze(0) if query_embedding.dim() > 1 else query_embedding
-                    
-                    # Get positive embedding (selected guide)
-                    positive_embedding = self._get_guide_embedding(selected_guide)
-                    if positive_embedding is None:
-                        logger.debug(f"Could not get embedding for selected guide: {selected_guide}")
+            logger.info(f"Created {len(anchors)} samples from scraped DB")
+        
+        if data_source in ("feedback", "both"):
+            session_data_list = []
+            try:
+                connection = create_connection(self.feedback_collector.db_path)
+                with connection.session() as session:
+                    sessions = session.query(FeedbackSession).filter(
+                        FeedbackSession.selected_guide.isnot(None),
+                        FeedbackSession.selected_guide != ""
+                    ).all()
+                    for feedback_session in sessions:
+                        session_data_list.append({
+                            "fault_codes": feedback_session.get_fault_codes(),
+                            "obd_data": feedback_session.get_obd_data(),
+                            "selected_guide": feedback_session.selected_guide,
+                            "recommended_guides": feedback_session.get_recommended_guides(),
+                            "session_id": feedback_session.session_id
+                        })
+            except Exception as e:
+                raise RuntimeError(f"Failed to query feedback sessions: {e}") from e
+            
+            if data_source == "feedback" and len(session_data_list) < min_samples:
+                raise ValueError(
+                    f"Insufficient feedback data: {len(session_data_list)} sessions "
+                    f"(minimum {min_samples} required)"
+                )
+            logger.info(f"Found {len(session_data_list)} feedback sessions with selected guides")
+            
+            self.encoder.eval()
+            with torch.no_grad():
+                for session_data in session_data_list:
+                    try:
+                        fault_codes = session_data["fault_codes"]
+                        obd_data = session_data["obd_data"]
+                        selected_guide = session_data["selected_guide"]
+                        recommended_guides = session_data["recommended_guides"]
+                        if not fault_codes or not selected_guide:
+                            continue
+                        fault_codes_str = ", ".join(fault_codes) if isinstance(fault_codes, list) else str(fault_codes)
+                        query_embedding = self.encoder.encode(
+                            fault_codes_str,
+                            obd_data=obd_data if obd_data else None
+                        )
+                        query_embedding = query_embedding.squeeze(0) if query_embedding.dim() > 1 else query_embedding
+                        positive_embedding = self._get_guide_embedding(selected_guide)
+                        if positive_embedding is None:
+                            logger.debug(f"Could not get embedding for selected guide: {selected_guide}")
+                            continue
+                        negative_embeddings = []
+                        for guide_id in recommended_guides:
+                            if guide_id != selected_guide:
+                                neg_emb = self._get_guide_embedding(guide_id)
+                                if neg_emb is not None:
+                                    negative_embeddings.append(neg_emb)
+                        if negative_embeddings:
+                            anchors.append(query_embedding)
+                            positives.append(positive_embedding)
+                            negatives_list.append(negative_embeddings)
+                    except Exception as e:
+                        logger.warning(f"Error processing session {session_data.get('session_id', 'unknown')}: {e}")
                         continue
-                    
-                    # Get negative embeddings (non-selected recommended guides)
-                    negative_embeddings = []
-                    for guide_id in recommended_guides:
-                        if guide_id != selected_guide:
-                            neg_emb = self._get_guide_embedding(guide_id)
-                            if neg_emb is not None:
-                                negative_embeddings.append(neg_emb)
-                    
-                    # If insufficient negatives, we'll pad in the dataset
-                    if negative_embeddings:
-                        anchors.append(query_embedding)
-                        positives.append(positive_embedding)
-                        negatives_list.append(negative_embeddings)
-                
-                except Exception as e:
-                    logger.warning(f"Error processing session {session_data.get('session_id', 'unknown')}: {e}")
-                    continue
         
         if len(anchors) < min_samples:
             raise ValueError(
@@ -390,15 +483,17 @@ class EmbeddingTrainer:
         self,
         train_dataset: Optional[ContrastiveFeedbackDataset] = None,
         val_dataset: Optional[ContrastiveFeedbackDataset] = None,
-        resume_from_checkpoint: Optional[Union[str, Path]] = None
+        resume_from_checkpoint: Optional[Union[str, Path]] = None,
+        data_source: Optional[str] = None
     ) -> None:
         """
         Train encoder using contrastive learning.
         
         Args:
-            train_dataset: Training dataset. If None, creates from feedback data.
-            val_dataset: Validation dataset. If None, creates from feedback data.
+            train_dataset: Training dataset. If None, creates from data_source.
+            val_dataset: Validation dataset. If None, creates from data_source.
             resume_from_checkpoint: Path to checkpoint to resume from (optional)
+            data_source: "db" | "feedback" | "both". Used when creating dataset.
         
         Raises:
             ValueError: If datasets are invalid or insufficient data
@@ -406,7 +501,7 @@ class EmbeddingTrainer:
         """
         # Create datasets if not provided
         if train_dataset is None or val_dataset is None:
-            train_dataset, val_dataset = self.create_dataset()
+            train_dataset, val_dataset = self.create_dataset(data_source=data_source)
         
         if len(train_dataset) == 0:
             raise ValueError("Training dataset is empty")

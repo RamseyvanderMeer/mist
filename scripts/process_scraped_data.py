@@ -9,22 +9,27 @@ This script:
 4. Calculates quality scores
 5. Deduplicates records
 6. Outputs cleaned data in MIST-compatible format
+
+Uses DB (scraped_records) by default when DATABASE_URL is set.
+Legacy JSONL mode via --input/--output is deprecated.
 """
 import sys
-import json
-import re
 from pathlib import Path
+
+# Add project root to path before importing scrapers
+_project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(_project_root))
+sys.path.insert(0, str(_project_root / "src"))
+
+import json
+import os
+import re
 from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict
 import logging
 from datetime import datetime, timezone
 
 from scrapers.utils.constants import FAULT_CODE_VALIDATE_PATTERNS, OBD_RANGES
-
-# Add project root to path
-_project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(_project_root))
-sys.path.insert(0, str(_project_root / "src"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -365,9 +370,92 @@ class ScrapedDataProcessor:
         
         return processed
     
+    def _row_to_record(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert DB row to record dict for process_record()."""
+        def _parse_json(val: Any, default: Any) -> Any:
+            if val is None:
+                return default
+            if isinstance(val, (list, dict)):
+                return val
+            if isinstance(val, str):
+                try:
+                    return json.loads(val)
+                except json.JSONDecodeError:
+                    return default
+            return default
+
+        return {
+            "source_url": row.get("source_url"),
+            "fault_codes": _parse_json(row.get("fault_codes"), []),
+            "obd_data": _parse_json(row.get("obd_data"), {}),
+            "vehicle_context": _parse_json(row.get("vehicle_context"), {}),
+            "repair_summary": row.get("repair_summary"),
+            "repair_guide": row.get("repair_guide") or row.get("repair_summary"),
+            "outcome": row.get("outcome"),
+            "source_type": row.get("source_type", "forum"),
+            "record_type": row.get("record_type", "fault_code"),
+            "symptoms": row.get("symptoms"),
+            "timestamp": str(row.get("timestamp")) if row.get("timestamp") else None,
+        }
+    
+    def process_from_db(self, db_url: str) -> List[Dict[str, Any]]:
+        """Load from scraped_records, process, deduplicate, and return valid records."""
+        from sqlalchemy import create_engine, text
+        engine = create_engine(db_url)
+        logger.info("Loading records from scraped_records...")
+        records = []
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("""
+                    SELECT source_url, fault_codes, obd_data, vehicle_context,
+                           repair_summary, outcome, source_type, record_type,
+                           symptoms, timestamp
+                    FROM scraped_records
+                    WHERE repair_summary IS NOT NULL
+                      AND (record_type = 'cause_to_solution'
+                           OR (fault_codes IS NOT NULL AND fault_codes::text NOT IN ('[]', 'null')))
+                """)
+            )
+            columns = result.keys()
+            for row in result:
+                rec = dict(zip(columns, row))
+                record = self._row_to_record(rec)
+                processed = self.process_record(record)
+                if processed:
+                    records.append(processed)
+        logger.info(f"Processed {len(records)} valid records from DB")
+        records = self.deduplicate_records(records)
+        logger.info(f"After deduplication: {len(records)} records")
+        return records
+    
+    def write_to_db(self, records: List[Dict[str, Any]], db_url: str) -> None:
+        """Update scraped_records with quality_score for processed records."""
+        from sqlalchemy import create_engine, text
+        engine = create_engine(db_url)
+        updated = 0
+        with engine.connect() as conn:
+            for rec in records:
+                source_url = rec.get("source_url")
+                if not source_url:
+                    continue
+                quality_score = rec.get("quality_score")
+                if quality_score is None:
+                    continue
+                conn.execute(
+                    text("""
+                        UPDATE scraped_records
+                        SET quality_score = :quality_score
+                        WHERE source_url = :source_url
+                    """),
+                    {"quality_score": quality_score, "source_url": source_url}
+                )
+                updated += 1
+            conn.commit()
+        logger.info(f"Updated quality_score for {updated} records in scraped_records")
+    
     def process_file(self, input_path: Path, output_path: Path) -> None:
         """
-        Process a JSONL file.
+        Process a JSONL file (legacy; deprecated when using DB).
         
         Args:
             input_path: Path to input JSONL file
@@ -449,21 +537,25 @@ class ScrapedDataProcessor:
 
 
 def main():
-    """Main entry point."""
+    """Main entry point. Uses DB by default when DATABASE_URL is set."""
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="Process scraped web data for MIST training"
+        description="Process scraped web data for MIST training. Uses DB by default when DATABASE_URL is set."
     )
     parser.add_argument(
         'input',
         type=Path,
-        help='Input file or directory (JSONL format)'
+        nargs='?',
+        default=None,
+        help='Input file or directory (JSONL format). Omit to use DB when DATABASE_URL is set.'
     )
     parser.add_argument(
         'output',
         type=Path,
-        help='Output file or directory (JSONL format)'
+        nargs='?',
+        default=None,
+        help='Output file or directory (JSONL format). Omit when using DB mode.'
     )
     parser.add_argument(
         '--min-quality',
@@ -471,17 +563,39 @@ def main():
         default=0.6,
         help='Minimum quality score (0.0-1.0, default: 0.6)'
     )
+    parser.add_argument(
+        '--from-db',
+        action='store_true',
+        help='Explicitly use DB (default when DATABASE_URL is set)'
+    )
     
     args = parser.parse_args()
     
-    processor = ScrapedDataProcessor(min_quality_score=args.min_quality)
+    db_url = os.environ.get("DATABASE_URL", "")
+    use_db = bool(db_url and db_url.startswith("postgresql")) and (args.from_db or (args.input is None and args.output is None))
     
-    if args.input.is_file():
-        processor.process_file(args.input, args.output)
-    elif args.input.is_dir():
-        processor.process_directory(args.input, args.output)
+    if use_db:
+        if not db_url or not db_url.startswith("postgresql"):
+            logger.error("DATABASE_URL required for DB mode. Set in .env or export.")
+            sys.exit(1)
+        processor = ScrapedDataProcessor(min_quality_score=args.min_quality)
+        records = processor.process_from_db(db_url)
+        processor.write_to_db(records, db_url)
+        processor.print_statistics()
+    elif args.input is not None and args.output is not None:
+        logger.warning("JSONL input/output is deprecated. Use DB mode (set DATABASE_URL) for DB-first workflow.")
+        processor = ScrapedDataProcessor(min_quality_score=args.min_quality)
+        if args.input.is_file():
+            processor.process_file(args.input, args.output)
+        elif args.input.is_dir():
+            processor.process_directory(args.input, args.output)
+        else:
+            logger.error(f"Input path does not exist: {args.input}")
+            sys.exit(1)
     else:
-        logger.error(f"Input path does not exist: {args.input}")
+        logger.error(
+            "Either set DATABASE_URL for DB mode, or provide both --input and --output for legacy JSONL mode."
+        )
         sys.exit(1)
 
 

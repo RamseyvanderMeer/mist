@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Export scraped_records from Postgres to JSONL for process_scraped_data.py.
+DEPRECATED: Export scraped_records from Postgres to JSONL.
+
+DB is now the source of truth. Use process_scraped_data.py (with DATABASE_URL set)
+for DB-first workflow. This script is kept for legacy migration only.
 
 Usage:
     python scripts/export_scraped_from_postgres.py
@@ -21,11 +24,18 @@ load_dotenv(ROOT / ".env")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL or not DATABASE_URL.startswith("postgresql"):
     print("DATABASE_URL not set. Add it to .env", file=sys.stderr)
+    print("Note: This script is deprecated. Use process_scraped_data.py with DATABASE_URL for DB-first workflow.", file=sys.stderr)
     sys.exit(1)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Export scraped_records from Postgres to JSONL")
+    import warnings
+    warnings.warn(
+        "export_scraped_from_postgres.py is deprecated. Use process_scraped_data.py with DATABASE_URL for DB-first workflow.",
+        DeprecationWarning,
+        stacklevel=1,
+    )
+    parser = argparse.ArgumentParser(description="Export scraped_records from Postgres to JSONL (deprecated)")
     parser.add_argument(
         "-o", "--output",
         type=Path,

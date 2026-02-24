@@ -9,10 +9,14 @@ This module provides a Ranker class that combines multiple ranking signals:
 
 Scores are combined using configurable weights and normalized to ensure
 consistent scoring across different signal types.
+
+When DATABASE_URL is set, weights are loaded from the ranking_weights table
+(active row); otherwise falls back to config/retrieval_config.yaml.
 """
 from typing import List, Dict, Optional, Union, Any
 from pathlib import Path
 import logging
+import os
 import yaml
 
 from src.paths import Paths
@@ -64,22 +68,27 @@ class Ranker:
         Raises:
             RankerConfigurationError: If configuration is invalid
         """
-        # Load configuration
-        self.config = self._load_config(config)
-        
-        # Extract weights with defaults
-        self.weights = {
-            "embedding_similarity": self.config.get("embedding_similarity", 0.4),
-            "rerank_score": self.config.get("rerank_score", 0.3),
-            "kg_path_score": self.config.get("kg_path_score", 0.2),
-            "feedback_score": self.config.get("feedback_score", 0.1),
-        }
+        # Try loading weights from DB first when DATABASE_URL is set
+        weights_from_db = self._load_weights_from_db()
+        if weights_from_db is not None:
+            self.config = weights_from_db
+            self.weights = dict(weights_from_db)
+        else:
+            # Load configuration from file
+            self.config = self._load_config(config)
+            self.weights = {
+                "embedding_similarity": self.config.get("embedding_similarity", 0.4),
+                "rerank_score": self.config.get("rerank_score", 0.3),
+                "kg_path_score": self.config.get("kg_path_score", 0.2),
+                "feedback_score": self.config.get("feedback_score", 0.1),
+            }
         
         # Validate and normalize weights
         self._validate_weights()
         
+        source = "DB" if weights_from_db is not None else "config"
         logger.info(
-            f"Initialized Ranker with weights: "
+            f"Initialized Ranker (weights from {source}): "
             f"embedding={self.weights['embedding_similarity']:.2f}, "
             f"rerank={self.weights['rerank_score']:.2f}, "
             f"kg={self.weights['kg_path_score']:.2f}, "
@@ -160,6 +169,43 @@ class Ranker:
             return {}
         
         return ranking_config
+    
+    def _load_weights_from_db(self) -> Optional[Dict[str, float]]:
+        """
+        Load ranking weights from ranking_weights table when DATABASE_URL is set.
+        
+        Returns:
+            Dict with embedding_similarity, rerank_score, kg_path_score, feedback_score,
+            or None if DATABASE_URL not set or table/row not found.
+        """
+        db_url = os.environ.get("DATABASE_URL", "")
+        if not db_url or not db_url.startswith("postgresql"):
+            return None
+        try:
+            from sqlalchemy import create_engine, text
+            engine = create_engine(db_url)
+            with engine.connect() as conn:
+                result = conn.execute(
+                    text("""
+                        SELECT embedding_similarity, rerank_score, kg_path_score, feedback_score
+                        FROM ranking_weights
+                        WHERE is_active = true
+                        ORDER BY id DESC
+                        LIMIT 1
+                    """)
+                )
+                row = result.fetchone()
+                if row is None:
+                    return None
+                return {
+                    "embedding_similarity": float(row[0]),
+                    "rerank_score": float(row[1]),
+                    "kg_path_score": float(row[2]),
+                    "feedback_score": float(row[3]),
+                }
+        except Exception as e:
+            logger.debug("Could not load ranking weights from DB: %s", e)
+            return None
     
     def _validate_weights(self) -> None:
         """

@@ -6,17 +6,18 @@ This script processes scraped data that contains repair_summary fields and match
 them to repair guides in the vector database using semantic search. The matched
 repair guide information is added to each record.
 
-Optionally generates match_reasoning (context and verification questions) for use
-in the diagnostic flow.
+Uses DB (scraped_records) by default when DATABASE_URL is set. Updates matched_guide_id,
+matched_guide_title, match_reasoning in place. Legacy JSONL mode via --input/--output
+is deprecated.
 
 Usage:
-    python scripts/match_repair_guides.py input.jsonl output.jsonl
-    python scripts/match_repair_guides.py input_dir/ output_dir/ --min-similarity 0.65
-    python scripts/match_repair_guides.py input_dir/ output_dir/ --generate-reasoning
+    python scripts/match_repair_guides.py                    # DB mode when DATABASE_URL set
+    python scripts/match_repair_guides.py input.jsonl output.jsonl  # Legacy JSONL
 """
 import re
 import sys
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import logging
@@ -322,6 +323,62 @@ class RepairGuideMatcher:
         
         return record
     
+    def process_from_db(self, db_url: str, unmatched_only: bool = True) -> None:
+        """
+        Load from scraped_records, match each record, UPDATE rows in place with
+        matched_guide_id, matched_guide_title, match_reasoning.
+        """
+        from sqlalchemy import create_engine, text
+        engine = create_engine(db_url)
+        logger.info("Loading records from scraped_records...")
+        with engine.connect() as conn:
+            where = "WHERE repair_summary IS NOT NULL"
+            if unmatched_only:
+                where += " AND matched_guide_id IS NULL"
+            result = conn.execute(
+                text(f"""
+                    SELECT source_url, repair_summary, fault_codes, symptoms
+                    FROM scraped_records {where}
+                """)
+            )
+            columns = result.keys()
+            rows = [dict(zip(columns, row)) for row in result]
+        
+        logger.info(f"Processing {len(rows)} records...")
+        for i, row in enumerate(rows):
+            fault_codes = row.get("fault_codes")
+            if isinstance(fault_codes, str):
+                try:
+                    fault_codes = json.loads(fault_codes) if fault_codes else []
+                except json.JSONDecodeError:
+                    fault_codes = []
+            record = {
+                "source_url": row["source_url"],
+                "repair_summary": row["repair_summary"],
+                "fault_codes": fault_codes if isinstance(fault_codes, list) else [],
+                "symptoms": row.get("symptoms"),
+            }
+            processed = self.process_record(record)
+            match_guide = processed.get("repair_guide")
+            match_reasoning = processed.get("match_reasoning")
+            matched_id = match_guide.get("procedure_id") if match_guide else None
+            matched_title = match_guide.get("title") if match_guide else None
+            reasoning_json = json.dumps(match_reasoning, ensure_ascii=False) if match_reasoning else None
+            with engine.connect() as conn:
+                conn.execute(
+                    text("""
+                        UPDATE scraped_records
+                        SET matched_guide_id = :mid, matched_guide_title = :title,
+                            match_reasoning = CAST(:reasoning AS jsonb)
+                        WHERE source_url = :url
+                    """),
+                    {"mid": matched_id, "title": matched_title, "reasoning": reasoning_json, "url": row["source_url"]}
+                )
+                conn.commit()
+            if (i + 1) % 100 == 0:
+                logger.info(f"Processed {i + 1}/{len(rows)} records...")
+        logger.info(f"Completed. Matched {self.stats['matched']}/{self.stats['total_processed']} records.")
+    
     def process_file(self, input_path: Path, output_path: Path) -> None:
         """
         Process a JSONL file.
@@ -406,21 +463,25 @@ class RepairGuideMatcher:
 
 
 def main():
-    """Main entry point."""
+    """Main entry point. Uses DB by default when DATABASE_URL is set."""
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="Match repair summaries to repair guides using vector database"
+        description="Match repair summaries to repair guides. Uses DB by default when DATABASE_URL is set."
     )
     parser.add_argument(
         'input',
         type=Path,
-        help='Input file or directory (JSONL format)'
+        nargs='?',
+        default=None,
+        help='Input file or directory (JSONL format). Omit to use DB when DATABASE_URL is set.'
     )
     parser.add_argument(
         'output',
         type=Path,
-        help='Output file or directory (JSONL format)'
+        nargs='?',
+        default=None,
+        help='Output file or directory (JSONL format). Omit when using DB mode.'
     )
     parser.add_argument(
         '--min-similarity',
@@ -439,22 +500,50 @@ def main():
         action='store_true',
         help='Generate match_reasoning (context + verification questions) via LLM for diagnosis flow'
     )
+    parser.add_argument(
+        '--from-db',
+        action='store_true',
+        help='Explicitly use DB (default when DATABASE_URL is set)'
+    )
+    parser.add_argument(
+        '--all',
+        action='store_true',
+        help='Process all records (default: only unmatched, i.e. matched_guide_id IS NULL)'
+    )
 
     args = parser.parse_args()
+
+    db_url = os.environ.get("DATABASE_URL", "")
+    use_db = bool(db_url and db_url.startswith("postgresql")) and (
+        args.from_db or (args.input is None and args.output is None)
+    )
 
     matcher = RepairGuideMatcher(
         min_similarity=args.min_similarity,
         top_k=args.top_k,
         generate_reasoning=args.generate_reasoning,
     )
-    
-    if args.input.is_file():
-        matcher.process_file(args.input, args.output)
+
+    if use_db:
+        if not db_url or not db_url.startswith("postgresql"):
+            logger.error("DATABASE_URL required for DB mode. Set in .env or export.")
+            sys.exit(1)
+        matcher.process_from_db(db_url, unmatched_only=not args.all)
         matcher.print_statistics()
-    elif args.input.is_dir():
-        matcher.process_directory(args.input, args.output)
+    elif args.input is not None and args.output is not None:
+        logger.warning("JSONL input/output is deprecated. Use DB mode (set DATABASE_URL) for DB-first workflow.")
+        if args.input.is_file():
+            matcher.process_file(args.input, args.output)
+            matcher.print_statistics()
+        elif args.input.is_dir():
+            matcher.process_directory(args.input, args.output)
+        else:
+            logger.error(f"Input path does not exist: {args.input}")
+            sys.exit(1)
     else:
-        logger.error(f"Input path does not exist: {args.input}")
+        logger.error(
+            "Either set DATABASE_URL for DB mode, or provide both input and output for legacy JSONL mode."
+        )
         sys.exit(1)
 
 

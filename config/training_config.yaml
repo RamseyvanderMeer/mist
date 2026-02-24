@@ -1,6 +1,12 @@
 # Training Configuration
 # Hyperparameters and settings for embedding fine-tuning and self-improvement
 
+# Data source for training (db = scraped_records from Neon, feedback = SQLite sessions)
+data_source:
+  default: db  # db | feedback | both
+  scraped_min_confidence: 0.7
+  scraped_outcomes: ["success", "partial"]
+
 # Training hyperparameters for contrastive learning
 training:
   batch_size: 32  # Batch size for training

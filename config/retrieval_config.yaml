@@ -41,6 +41,7 @@ reranking:
 
 # Combined ranking weights (must sum to 1.0)
 # Final score = embedding_similarity * embedding_score + rerank_score * rerank_value + ...
+# When DATABASE_URL is set, weights are loaded from ranking_weights table (overrides this section).
 ranking:
   embedding_similarity: 0.4  # Weight for vector similarity score
   rerank_score: 0.3  # Weight for re-ranking score

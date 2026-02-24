@@ -9,6 +9,7 @@ Tracks which (forum, code) search combinations have been completed for resumable
 """
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -178,7 +179,7 @@ def _normalize_url_for_dedup(url: str) -> str:
 
 
 def _load_seen_urls(output_dir: Path) -> set[str]:
-    """Load already-parsed source URLs from JSONL files and optional Postgres."""
+    """Load already-parsed source URLs from Postgres when DATABASE_URL is set."""
     seen = set()
     output_dir = Path(output_dir)
 
@@ -186,39 +187,17 @@ def _load_seen_urls(output_dir: Path) -> set[str]:
         if u:
             seen.add(_normalize_url_for_dedup(u))
 
-    # From JSONL files (skip ._* resource forks)
-    forums_dir = output_dir / "forums"
-    if forums_dir.exists():
-        for jsonl_path in forums_dir.glob("*.jsonl"):
-            if jsonl_path.name.startswith("._"):
-                continue
-            try:
-                with open(jsonl_path, "r", encoding="utf-8", errors="replace") as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            rec = json.loads(line)
-                            add_url(rec.get("source_url"))
-                        except json.JSONDecodeError:
-                            continue
-            except (OSError, UnicodeDecodeError):
-                continue
-
-    # From Postgres if DATABASE_URL set
-    try:
-        import os
-        db_url = os.environ.get("DATABASE_URL")
-        if db_url:
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url and db_url.startswith("postgresql"):
+        try:
             from sqlalchemy import create_engine, text
             engine = create_engine(db_url)
             with engine.connect() as conn:
                 result = conn.execute(text("SELECT source_url FROM scraped_records"))
                 for row in result:
                     add_url(row[0])
-    except Exception as e:
-        logger.debug("Could not load seen URLs from Postgres: %s", e)
+        except Exception as e:
+            logger.debug("Could not load seen URLs from Postgres: %s", e)
 
     return seen
 
