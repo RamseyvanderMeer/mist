@@ -21,6 +21,10 @@ _project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(_project_root))
 sys.path.insert(0, str(_project_root / "src"))
 
+# Load .env for DATABASE_URL
+from dotenv import load_dotenv
+load_dotenv(_project_root / ".env")
+
 import json
 import os
 import re
@@ -398,15 +402,17 @@ class ScrapedDataProcessor:
             "timestamp": str(row.get("timestamp")) if row.get("timestamp") else None,
         }
     
-    def process_from_db(self, db_url: str) -> List[Dict[str, Any]]:
-        """Load from scraped_records, process, deduplicate, and return valid records."""
+    def process_from_db(self, db_url: str, skip_already_processed: bool = True) -> List[Dict[str, Any]]:
+        """Load from scraped_records, process, deduplicate, and return valid records.
+        When skip_already_processed is True, only fetches rows where quality_score IS NULL."""
         from sqlalchemy import create_engine, text
         engine = create_engine(db_url)
         logger.info("Loading records from scraped_records...")
         records = []
+        skip_clause = "AND quality_score IS NULL" if skip_already_processed else ""
         with engine.connect() as conn:
             result = conn.execute(
-                text("""
+                text(f"""
                     SELECT source_url, fault_codes, obd_data, vehicle_context,
                            repair_summary, outcome, source_type, record_type,
                            symptoms, timestamp
@@ -414,6 +420,7 @@ class ScrapedDataProcessor:
                     WHERE repair_summary IS NOT NULL
                       AND (record_type = 'cause_to_solution'
                            OR (fault_codes IS NOT NULL AND fault_codes::text NOT IN ('[]', 'null')))
+                      {skip_clause}
                 """)
             )
             columns = result.keys()
@@ -428,11 +435,21 @@ class ScrapedDataProcessor:
         logger.info(f"After deduplication: {len(records)} records")
         return records
     
-    def write_to_db(self, records: List[Dict[str, Any]], db_url: str) -> None:
-        """Update scraped_records with quality_score for processed records."""
+    def write_to_db(self, records: List[Dict[str, Any]], db_url: str, batch_size: int = 500) -> None:
+        """Update scraped_records with quality_score for processed records (batch via executemany)."""
         from sqlalchemy import create_engine, text
+        rows = [
+            {"source_url": rec["source_url"], "quality_score": rec["quality_score"]}
+            for rec in records
+            if rec.get("source_url") and rec.get("quality_score") is not None
+        ]
+        if not rows:
+            logger.info("No records to update")
+            return
         engine = create_engine(db_url)
-        updated = 0
+        stmt = text(
+            "UPDATE scraped_records SET quality_score = :quality_score WHERE source_url = :source_url"
+        )
         with engine.connect() as conn:
             for rec in records:
                 source_url = rec.get("source_url")
@@ -450,8 +467,9 @@ class ScrapedDataProcessor:
                     {"quality_score": quality_score, "source_url": source_url}
                 )
                 updated += 1
+                logger.info(f"Updated quality_score for {source_url}")
             conn.commit()
-        logger.info(f"Updated quality_score for {updated} records in scraped_records")
+        logger.info(f"Updated quality_score for {len(rows)} records in scraped_records")
     
     def process_file(self, input_path: Path, output_path: Path) -> None:
         """
@@ -568,6 +586,11 @@ def main():
         action='store_true',
         help='Explicitly use DB (default when DATABASE_URL is set)'
     )
+    parser.add_argument(
+        '--reprocess',
+        action='store_true',
+        help='Reprocess records that already have quality_score (default: skip them)'
+    )
     
     args = parser.parse_args()
     
@@ -579,7 +602,7 @@ def main():
             logger.error("DATABASE_URL required for DB mode. Set in .env or export.")
             sys.exit(1)
         processor = ScrapedDataProcessor(min_quality_score=args.min_quality)
-        records = processor.process_from_db(db_url)
+        records = processor.process_from_db(db_url, skip_already_processed=not args.reprocess)
         processor.write_to_db(records, db_url)
         processor.print_statistics()
     elif args.input is not None and args.output is not None:

@@ -36,7 +36,7 @@ from retrieval.vector_store import VectorStore
 from paths import get_paths
 
 # Load environment variables
-load_dotenv()
+load_dotenv(ROOT / ".env")
 
 logging.basicConfig(
     level=logging.INFO,

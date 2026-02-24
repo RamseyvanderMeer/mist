@@ -88,6 +88,8 @@ class FaultCodeEncoder:
         
         # Encode
         embeddings = self.model.encode(prefixed_texts, convert_to_tensor=True)
+        # Ensure float32 for projection (model may output float16)
+        embeddings = embeddings.float()
         
         # Clone embeddings to allow gradient tracking if projection layer is in train mode
         # This is necessary because sentence-transformers uses inference mode

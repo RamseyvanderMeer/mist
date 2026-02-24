@@ -333,12 +333,14 @@ class VectorStore:
             if query_embedding.ndim > 1:
                 query_embedding = query_embedding.flatten()
             
-            results = self.client.search(
+            # Use query_points (search was removed in qdrant-client 1.16+)
+            response = self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_embedding.tolist(),
+                query=query_embedding.tolist(),
                 limit=top_k,
                 query_filter=query_filter
             )
+            results = response.points if hasattr(response, "points") else []
             
             # Format results
             formatted_results = []
@@ -346,7 +348,7 @@ class VectorStore:
                 formatted_results.append({
                     "id": str(result.id),
                     "score": result.score,
-                    **result.payload
+                    **(result.payload or {})
                 })
             
             return formatted_results
