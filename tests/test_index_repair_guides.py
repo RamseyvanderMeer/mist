@@ -398,7 +398,9 @@ class TestRepairGuideIndexer:
         
         assert isinstance(embeddings, np.ndarray)
         assert embeddings.shape == (2, 768)
-        mock_encoder.encode.assert_called_once()
+        mock_encoder.encode.assert_called_once_with(
+            ["Procedure 1 text", "Procedure 2 text"], normalize=True, is_query=False
+        )
     
     @patch('index_repair_guides.IstaDatabase')
     @patch('index_repair_guides.FaultCodeEncoder')

@@ -66,13 +66,24 @@ class FaultCodeEncoder:
             self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=device)
             self.projection = torch.nn.Linear(384, projection_dim).to(device)
     
-    def encode(self, texts: Union[str, List[str]], normalize: bool = True) -> torch.Tensor:
+    def encode(
+        self,
+        texts: Union[str, List[str]],
+        normalize: bool = True,
+        is_query: bool = True,
+    ) -> torch.Tensor:
         """
         Encode fault code descriptions.
+        
+        E5 models use asymmetric retrieval: queries need a prompt prefix, documents
+        must be encoded without prefix. Using "query" for both causes very low
+        similarity scores (embeddings in wrong space).
         
         Args:
             texts: Single string or list of strings
             normalize: Whether to L2-normalize embeddings
+            is_query: If True, add query prompt (for search). If False, encode as
+                document/passage (for indexing). Default True for backward compat.
         
         Returns:
             torch.Tensor: (batch_size, projection_dim) embeddings
@@ -80,14 +91,19 @@ class FaultCodeEncoder:
         if isinstance(texts, str):
             texts = [texts]
         
-        # E5-Mistral requires instruction prefix
-        if "e5" in self.model_name.lower():
-            prefixed_texts = [f"query: {text}" for text in texts]
+        # E5-Mistral: use built-in prompt_name for queries; documents use no prefix
+        if "e5" in self.model_name.lower() and is_query:
+            # Use model's web_search_query prompt (Instruct + Query format)
+            try:
+                embeddings = self.model.encode(
+                    texts, prompt_name="web_search_query", convert_to_tensor=True
+                )
+            except (TypeError, KeyError):
+                # Fallback if prompt not available
+                prefixed_texts = [f"query: {text}" for text in texts]
+                embeddings = self.model.encode(prefixed_texts, convert_to_tensor=True)
         else:
-            prefixed_texts = texts
-        
-        # Encode
-        embeddings = self.model.encode(prefixed_texts, convert_to_tensor=True)
+            embeddings = self.model.encode(texts, convert_to_tensor=True)
         # Ensure float32 for projection (model may output float16)
         embeddings = embeddings.float()
         

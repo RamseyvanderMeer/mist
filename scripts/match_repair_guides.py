@@ -184,6 +184,8 @@ class RepairGuideMatcher:
             'low_confidence': 0,  # < 0.60
             'missing_summary': 0,
             'similarity_scores': [],
+            'zero_results': 0,  # Vector search returned no results
+            'below_threshold_scores': [],  # Top score when results exist but < threshold (sample)
         }
     
     def match_repair_guide(
@@ -217,49 +219,57 @@ class RepairGuideMatcher:
                 embedding = embedding.squeeze(0)
             embedding_np = embedding.detach().cpu().numpy()
             
-            # Prepare filter dict if fault codes available
-            filter_dict = None
-            if fault_codes:
-                filter_dict = {"fault_codes": fault_codes}
-            
-            # Search vector database
+            # Search vector database. Use fault_codes filter if available, but fall back to
+            # unfiltered search when filter returns 0 results (many repair guides have empty
+            # fault_codes or scraped codes may not match ISTA format).
+            filter_dict = {"fault_codes": fault_codes} if fault_codes else None
             results = self.vector_store.search(
                 query_embedding=embedding_np,
                 top_k=self.top_k,
                 filter_dict=filter_dict
             )
+            # Fallback: if filter returned nothing, retry without filter (semantic match only)
+            if not results and filter_dict:
+                results = self.vector_store.search(
+                    query_embedding=embedding_np,
+                    top_k=self.top_k,
+                    filter_dict=None
+                )
             
-            # Check if best match exceeds threshold
-            if results and results[0]['score'] >= self.min_similarity:
-                best_match = results[0]
-                
-                # Categorize confidence
-                score = best_match['score']
-                self.stats['similarity_scores'].append(score)
-                
-                if score >= 0.75:
-                    self.stats['high_confidence'] += 1
-                elif score >= 0.60:
-                    self.stats['medium_confidence'] += 1
-                else:
-                    self.stats['low_confidence'] += 1
-                
-                return {
-                    'title': best_match.get('title') or best_match.get('procedure_name', ''),
-                    'procedure_id': best_match.get('procedure_id', ''),
-                    'similarity_score': score,
-                    'text': best_match.get('text', '')[:500],  # First 500 chars
-                    'all_candidates': [
-                        {
-                            'title': r.get('title') or r.get('procedure_name', ''),
-                            'procedure_id': r.get('procedure_id', ''),
-                            'score': r['score']
-                        }
-                        for r in results[:3]  # Top 3 candidates
-                    ]
-                }
+            if not results:
+                self.stats['zero_results'] += 1
+                return None
             
-            return None
+            best_score = results[0]['score']
+            if best_score < self.min_similarity:
+                # Sample scores for diagnostics (first 200)
+                if len(self.stats['below_threshold_scores']) < 200:
+                    self.stats['below_threshold_scores'].append(best_score)
+                return None
+            
+            best_match = results[0]
+            score = best_match['score']
+            self.stats['similarity_scores'].append(score)
+            if score >= 0.75:
+                self.stats['high_confidence'] += 1
+            elif score >= 0.60:
+                self.stats['medium_confidence'] += 1
+            else:
+                self.stats['low_confidence'] += 1
+            return {
+                'title': best_match.get('title') or best_match.get('procedure_name', ''),
+                'procedure_id': best_match.get('procedure_id', ''),
+                'similarity_score': score,
+                'text': best_match.get('text', '')[:500],  # First 500 chars
+                'all_candidates': [
+                    {
+                        'title': r.get('title') or r.get('procedure_name', ''),
+                        'procedure_id': r.get('procedure_id', ''),
+                        'score': r['score']
+                    }
+                    for r in results[:3]  # Top 3 candidates
+                ]
+            }
             
         except Exception as e:
             logger.warning(f"Error matching repair guide: {e}")
@@ -446,6 +456,17 @@ class RepairGuideMatcher:
         logger.info(f"Matched: {self.stats['matched']} ({self.stats['matched']/max(self.stats['total_processed'], 1)*100:.1f}%)")
         logger.info(f"No match: {self.stats['no_match']} ({self.stats['no_match']/max(self.stats['total_processed'], 1)*100:.1f}%)")
         logger.info(f"Missing summary: {self.stats['missing_summary']}")
+        zero = self.stats.get('zero_results', 0)
+        below = self.stats.get('below_threshold_scores', [])
+        if zero or below:
+            logger.info("")
+            logger.info("Diagnostics (why no match):")
+            if zero:
+                logger.info(f"  Queries with 0 vector results: {zero}")
+            if below:
+                logger.info(f"  Queries with results but score < {self.min_similarity}: {len(below)} (sample)")
+                logger.info(f"    Score range: min={min(below):.3f}, max={max(below):.3f}, mean={np.mean(below):.3f}")
+                logger.info(f"    Try --min-similarity {max(below):.2f} to accept some matches")
         logger.info("")
         logger.info("Confidence breakdown:")
         logger.info(f"  High confidence (>=0.75): {self.stats['high_confidence']}")

@@ -271,9 +271,9 @@ class RepairGuideIndexer:
         """
         texts = [doc["text"] for doc in documents]
         
-        # Encode using FaultCodeEncoder
+        # Encode using FaultCodeEncoder (is_query=False for documents/passages)
         with torch.no_grad():
-            embeddings = self.encoder.encode(texts, normalize=True)
+            embeddings = self.encoder.encode(texts, normalize=True, is_query=False)
         
         # Convert to numpy
         if isinstance(embeddings, torch.Tensor):

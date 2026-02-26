@@ -3,7 +3,16 @@ Vector store interface using Qdrant for repair guide embeddings.
 """
 from typing import List, Dict, Optional, Union, Any
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue, MatchAny
+from qdrant_client.models import (
+    Distance,
+    VectorParams,
+    PointStruct,
+    Filter,
+    FieldCondition,
+    MatchValue,
+    MatchAny,
+    PayloadSchemaType,
+)
 import numpy as np
 import logging
 import uuid
@@ -176,6 +185,8 @@ class VectorStore:
                     f"Created collection: {self.collection_name} "
                     f"(size={vector_size}, distance={distance})"
                 )
+            # Ensure payload index for fault_codes so filter queries work (required by Qdrant)
+            self._ensure_fault_codes_payload_index()
         except VectorStoreConfigurationError:
             raise
         except Exception as e:
@@ -188,7 +199,31 @@ class VectorStore:
                 raise VectorStoreConfigurationError(
                     f"Failed to create collection: {e}"
                 ) from e
-    
+
+    def _ensure_fault_codes_payload_index(self) -> None:
+        """
+        Create payload index for 'fault_codes' (keyword) if missing.
+        Required for filter queries on fault_codes; safe to call if index already exists.
+        """
+        try:
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="fault_codes",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+            logger.info(
+                f"Created payload index for 'fault_codes' on collection {self.collection_name}"
+            )
+        except Exception as e:
+            msg = str(e).lower()
+            if "already exists" in msg or "exist" in msg or "duplicate" in msg:
+                logger.debug("Payload index for fault_codes already exists: %s", e)
+            else:
+                logger.warning(
+                    "Could not create payload index for fault_codes (filter may fail): %s",
+                    e,
+                )
+
     def add(
         self,
         embeddings: np.ndarray,

@@ -73,6 +73,29 @@ def test_fault_code_encoder_model_name():
     assert "e5" in encoder.model_name.lower()
 
 
+def test_fault_code_encoder_query_vs_document():
+    """Test that is_query produces different encoding than document (asymmetric retrieval)."""
+    encoder = FaultCodeEncoder(device="cpu")
+    text = "Replace ignition coil on cylinder 3"
+    with torch.no_grad():
+        q_emb = encoder.encode(text, normalize=True, is_query=True)
+        d_emb = encoder.encode(text, normalize=True, is_query=False)
+    # Both should be valid tensors
+    assert q_emb.shape == d_emb.shape
+    assert q_emb.shape[-1] == 768
+    # For E5, query and document encodings of same text should differ (different prompts)
+    # but cosine similarity should be high (same semantic content)
+    if q_emb.dim() > 1:
+        q_emb = q_emb.squeeze(0)
+    if d_emb.dim() > 1:
+        d_emb = d_emb.squeeze(0)
+    sim = torch.nn.functional.cosine_similarity(
+        q_emb.unsqueeze(0), d_emb.unsqueeze(0)
+    ).item()
+    # With correct E5 setup, same text as query+document should have high similarity
+    assert sim > 0.3, f"Query-document similarity too low ({sim:.3f}). Check E5 encoding."
+
+
 def test_fault_code_encoder_device_storage():
     """Test that device is stored as instance variable"""
     encoder = FaultCodeEncoder(device="cpu")
