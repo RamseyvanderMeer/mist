@@ -35,10 +35,25 @@ from sqlalchemy import create_engine, text
 
 engine = create_engine(DATABASE_URL)
 
+def _strip_leading_comments(stmt: str) -> str:
+    """Remove leading comment lines so CREATE TABLE/INDEX are not skipped."""
+    lines = stmt.strip().split("\n")
+    kept = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("--"):
+            continue
+        kept.append(line)
+    return "\n".join(kept).strip()
+
+
 with engine.connect() as conn:
     with open(migration_file, "r") as f:
         sql = f.read()
-    for stmt in (s.strip() for s in sql.split(";") if s.strip() and not s.strip().startswith("--")):
+    for raw in sql.split(";"):
+        stmt = _strip_leading_comments(raw)
+        if not stmt:
+            continue
         try:
             conn.execute(text(stmt))
             conn.commit()

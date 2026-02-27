@@ -30,7 +30,9 @@ class DatabaseConnection:
         """
         self.db_path = Path(db_path)
         self._engine = create_engine_for_db(str(self.db_path))
-        self._session_factory = sessionmaker(bind=self._engine, autocommit=False, autoflush=False)
+        self._session_factory = sessionmaker(
+            bind=self._engine, autocommit=False, autoflush=False
+        )
 
     def test_connection(self) -> bool:
         """
