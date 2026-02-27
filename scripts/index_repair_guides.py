@@ -93,16 +93,30 @@ def _truncate_and_seed(engine, procedure_ids: List[str]) -> int:
     with engine.connect() as conn:
         conn.execute(text("TRUNCATE TABLE indexing_work"))
         conn.commit()
-    # Insert in batches (batch commits for speed)
-    stmt = text("INSERT INTO indexing_work (procedure_id, status) VALUES (:pid, 'pending')")
-    chunk_size = 5000
-    with engine.connect() as conn:
-        for i in range(0, len(procedure_ids), chunk_size):
-            chunk = procedure_ids[i : i + chunk_size]
-            for pid in chunk:
-                conn.execute(stmt, {"pid": pid})
-            conn.commit()
-    return len(procedure_ids)
+    # Batch insert via psycopg2 execute_values (single INSERT with many VALUES)
+    total = len(procedure_ids)
+    values = [(pid, "pending") for pid in procedure_ids]
+    page_size = 10000
+    inserted = 0
+    with engine.raw_connection() as raw_conn:
+        try:
+            from psycopg2.extras import execute_values
+            cur = raw_conn.cursor()
+            for i in range(0, total, page_size):
+                chunk = values[i : i + page_size]
+                execute_values(
+                    cur,
+                    "INSERT INTO indexing_work (procedure_id, status) VALUES %s",
+                    chunk,
+                    page_size=page_size,
+                )
+                raw_conn.commit()
+                inserted += len(chunk)
+                if inserted % 50000 == 0 or inserted == total:
+                    logger.info("  Seeded %d / %d procedures", inserted, total)
+        finally:
+            raw_conn.close()
+    return total
 
 
 def _claim_batch(engine, worker_id: str, batch_size: int) -> List[str]:
@@ -891,8 +905,10 @@ def main():
                     pool_recycle=300,
                 )
                 _ensure_indexing_work_table(engine)
+                logger.info("Fetching procedures from ISTA (this may take 1-3 min)...")
                 procedures = indexer._get_all_procedures()
                 procedure_ids = [p["id"] for p in procedures]
+                logger.info("Truncating and seeding %d procedures (this may take 5-15 min)...", len(procedure_ids))
                 inserted = _truncate_and_seed(engine, procedure_ids)
                 logger.info("Reset and seeded %d procedures (--no-resume)", inserted)
             stats = indexer.index_with_db(
