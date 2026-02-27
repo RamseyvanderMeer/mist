@@ -56,20 +56,25 @@ class XmlContentFetcher:
                 logger.warning(f"XmlContentFetcher: could not connect to {xml_db_path}: {e}")
                 self._conn = None
 
-    def get_content(self, procedure_id: str, title: str) -> Optional[str]:
+    def get_content(
+        self, procedure_id: str, title: str, include_problem_solution: bool = True
+    ) -> Optional[str]:
         """
         Get full procedure content by FTS search on title.
-        
+
+        Optionally extracts problem/solution sections for better semantic search.
+
         Args:
             procedure_id: Procedure ID (for logging)
             title: Procedure title used for FTS search
-            
+            include_problem_solution: If True, prepend extracted problem/solution sections
+
         Returns:
             Full plain text content or None if not found
         """
         if not self._conn or not title or not title.strip():
             return None
-        
+
         try:
             cursor = self._conn.cursor()
             # Build FTS query from first 3–5 significant words
@@ -77,23 +82,29 @@ class XmlContentFetcher:
             if not terms:
                 return None
             search_query = " OR ".join(f'"{t}"' for t in terms)
-            
+
             cursor.execute(
                 f"SELECT {self.CONTENT_COL} FROM {self.FTS_TABLE} WHERE {self.FTS_TABLE} MATCH ? LIMIT 1",
-                (search_query,)
+                (search_query,),
             )
             row = cursor.fetchone()
             if not row:
                 return None
-            
+
             raw = row[0]
             if not raw:
                 return None
-            
-            text = self._strip_xml(str(raw))
-            if len(text) > 50:
-                return text
-            return None
+
+            raw_str = str(raw)
+            text = self._strip_xml(raw_str)
+            if len(text) <= 50:
+                return None
+
+            if include_problem_solution:
+                problem_solution = self.extract_problem_solution_sections(raw_str)
+                if problem_solution:
+                    text = problem_solution.strip() + "\n\n" + text
+            return text
         except sqlite3.OperationalError as e:
             logger.debug(f"XmlContentFetcher FTS failed for {procedure_id}: {e}")
             return None
@@ -107,6 +118,34 @@ class XmlContentFetcher:
         text = re.sub(r"\s+", " ", text).strip()
         text = re.sub(r"&[a-zA-Z]+;", " ", text)
         return re.sub(r"\s+", " ", text).strip()
+
+    def extract_problem_solution_sections(self, raw_xml: str) -> str:
+        """
+        Extract problem/solution-like sections from procedure content for semantic search.
+
+        Looks for common patterns (Problem:, Symptom:, Cause:, Solution:, Fix:, etc.)
+        that describe what the procedure addresses. Helps match user symptoms to repairs.
+
+        Returns:
+            Concatenated problem/solution text, or empty string if none found.
+        """
+        if not raw_xml or not isinstance(raw_xml, str):
+            return ""
+        text = self._strip_xml(raw_xml)
+        if len(text) < 20:
+            return ""
+        sections = []
+        # Match "Problem:", "Symptom:", "Cause:", "Condition:" etc. followed by text
+        problem_pattern = r"(?:Problem|Symptom|Cause|Condition|When|If)\s*[:\-]\s*([^.\n]{20,500})"
+        solution_pattern = r"(?:Solution|Fix|Repair|Procedure|Remedy)\s*[:\-]\s*([^.\n]{20,500})"
+        for pattern in [problem_pattern, solution_pattern]:
+            for m in re.finditer(pattern, text, re.IGNORECASE):
+                s = m.group(1).strip()
+                if s and s not in sections:
+                    sections.append(s[:400])
+        if sections:
+            return " Problem/Solution: " + "; ".join(sections[:5])  # Limit to 5 sections
+        return ""
 
     def close(self) -> None:
         """Close database connection."""

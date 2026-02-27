@@ -107,11 +107,12 @@ class ConversationalRAG:
         self,
         fault_codes: List[str],
         obd_data: Dict[str, Any],
+        description: Optional[str] = None,
         vehicle_context: Optional[Dict[str, Any]] = None,
         session_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Process initial query with fault codes and OBD data.
+        Process initial query with fault codes, OBD data, and optional problem description.
         
         Orchestrates the full retrieval pipeline:
         1. Session management (create or retrieve)
@@ -123,6 +124,7 @@ class ConversationalRAG:
         Args:
             fault_codes: List of fault code strings (e.g., ["P0301", "P0302"])
             obd_data: OBD sensor data dictionary
+            description: Optional problem/symptom description for semantic search
             vehicle_context: Optional vehicle information (merged into obd_data)
             session_id: Optional session ID for continuing existing conversation
         
@@ -135,8 +137,25 @@ class ConversationalRAG:
             - query_text: str
         """
         try:
-            # Generate query text from fault codes
-            query_text = self._generate_query_text(fault_codes)
+            # Expand symptom description to bridge symptom->fix semantic gap
+            # (e.g. "engine too hot" -> "overheating, coolant, radiator, thermostat")
+            expanded_description = description
+            if description and description.strip():
+                try:
+                    expanded_description = self.query_expander.expand_symptom_for_search(
+                        description.strip()
+                    )
+                    if expanded_description != description:
+                        logger.info(
+                            f"Symptom expansion applied for session (original: {len(description)} chars, "
+                            f"expanded: {len(expanded_description)} chars)"
+                        )
+                except Exception as e:
+                    logger.warning(f"Symptom expansion failed, using original: {e}")
+                    expanded_description = description
+
+            # Generate query text from fault codes and (expanded) description
+            query_text = self._generate_query_text(fault_codes, expanded_description)
             
             # Merge vehicle_context into obd_data if provided
             if vehicle_context:
@@ -155,18 +174,20 @@ class ConversationalRAG:
                 session_id = self.session_manager.create_session(
                     fault_codes=fault_codes,
                     obd_data=obd_data,
-                    vehicle_context=vehicle_context
+                    vehicle_context=vehicle_context,
+                    description=description
                 )
                 logger.info(f"Created new session: {session_id}")
             else:
                 logger.info(f"Continuing session: {session_id}")
             
-            # Multi-stage retrieval
+            # Multi-stage retrieval (use expanded description for better symptom->fix matching)
             try:
                 ranked_results = self.retriever.retrieve(
                     fault_codes=fault_codes,
                     obd_data=obd_data,
-                    query_text=query_text
+                    query_text=query_text,
+                    description=expanded_description
                 )
                 logger.info(f"Retrieved {len(ranked_results)} candidates for session {session_id}")
             except EnhancedRetrieverError as e:
@@ -308,6 +329,7 @@ class ConversationalRAG:
             # Get original session data
             fault_codes = session_data.get("fault_codes", [])
             obd_data = session_data.get("obd_data", {})
+            description = session_data.get("description")
             existing_questions = session_data.get("clarification_questions", [])
             
             # Validate responses match questions
@@ -317,8 +339,8 @@ class ConversationalRAG:
                     f"({len(existing_questions)}) for session {session_id}"
                 )
             
-            # Generate original query text
-            original_query_text = self._generate_query_text(fault_codes)
+            # Generate original query text (include description for expansion context)
+            original_query_text = self._generate_query_text(fault_codes, description)
             
             # Expand query with user responses
             expanded_query_text = original_query_text
@@ -335,12 +357,13 @@ class ConversationalRAG:
                 logger.warning(f"Query expansion failed for session {session_id}: {e}. Using original query.")
                 expanded_query_text = original_query_text
             
-            # Re-retrieve with expanded query
+            # Re-retrieve with expanded query (use expanded as search query)
             try:
                 ranked_results = self.retriever.retrieve(
                     fault_codes=fault_codes,
                     obd_data=obd_data,
-                    query_text=expanded_query_text
+                    query_text=expanded_query_text,
+                    search_query_text=expanded_query_text
                 )
                 logger.info(f"Re-retrieved {len(ranked_results)} candidates for session {session_id}")
             except EnhancedRetrieverError as e:
@@ -396,19 +419,27 @@ class ConversationalRAG:
             logger.error(f"Unexpected error in clarify() for session {session_id}: {e}", exc_info=True)
             raise ConversationalRAGError(f"Failed to process clarification: {e}") from e
     
-    def _generate_query_text(self, fault_codes: List[str]) -> str:
+    def _generate_query_text(
+        self,
+        fault_codes: List[str],
+        description: Optional[str] = None
+    ) -> str:
         """
-        Generate query text from fault codes.
+        Generate query text from fault codes and optional description.
         
         Args:
             fault_codes: List of fault code strings
+            description: Optional problem/symptom description
         
         Returns:
-            Query text string (comma-separated fault codes)
+            Query text string for search and re-ranking
         """
         if not fault_codes:
-            return ""
-        return ", ".join(fault_codes)
+            return description.strip() if description else ""
+        fault_text = ", ".join(fault_codes)
+        if description and description.strip():
+            return f"Fault codes: {fault_text}. Problem: {description.strip()}"
+        return fault_text
     
     def _format_recommendations(self, ranked_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

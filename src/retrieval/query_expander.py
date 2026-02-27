@@ -231,7 +231,50 @@ class QueryExpander:
             return original_query
         
         return expanded
-    
+
+    def expand_symptom_for_search(self, symptom: str) -> str:
+        """
+        Expand a symptom description into related causes, components, and repairs.
+
+        Bridges the symptom->fix semantic gap: e.g. "engine too hot" ->
+        "overheating, coolant system, radiator, thermostat, coolant leak".
+        Improves retrieval when user describes symptoms rather than fixes.
+
+        Args:
+            symptom: User's problem description (e.g. "engine too hot")
+
+        Returns:
+            Expanded text for search, or original symptom if expansion fails
+        """
+        if not symptom or not symptom.strip():
+            return symptom or ""
+        symptom = symptom.strip()
+        try:
+            prompt = self.prompt_templates.get_symptom_expansion_prompt(symptom)
+            if not prompt:
+                logger.debug("Symptom expansion template not configured, using original")
+                return symptom
+            messages = [
+                {"role": "system", "content": prompt["system"]},
+                {"role": "user", "content": prompt["user"]},
+            ]
+            provider_config = self._get_provider_config()
+            llm_response = self.llm_provider.generate(
+                messages=messages,
+                temperature=0.3,
+                max_tokens=provider_config.get("max_tokens", 150),
+            )
+            if not llm_response or not llm_response.strip():
+                return symptom
+            expanded = llm_response.strip()
+            # Combine original symptom with expanded terms for richer search
+            combined = f"{symptom}, {expanded}" if expanded != symptom else symptom
+            logger.info(f"Symptom expansion: '{symptom[:50]}...' -> '{combined[:80]}...'")
+            return combined
+        except Exception as e:
+            logger.warning(f"Symptom expansion failed: {e}. Using original description.")
+            return symptom
+
     def _get_provider_config(self) -> Dict[str, Any]:
         """
         Get configuration for the active provider.

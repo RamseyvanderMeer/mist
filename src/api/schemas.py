@@ -17,9 +17,13 @@ class Recommendation(BaseModel):
 
 
 class QueryRequest(BaseModel):
-    """Query request with fault codes, OBD data, and optional vehicle context."""
-    fault_codes: List[str] = Field(..., min_length=1, description="List of fault codes (e.g., ['P0301', 'P0302'])")
-    obd_data: Dict[str, Any] = Field(..., description="OBD sensor data dictionary")
+    """Query request with fault codes, OBD data, and optional problem description."""
+    fault_codes: List[str] = Field(
+        default_factory=list,
+        description="List of fault codes (e.g., ['P0301', 'P0302']). Empty allowed when description provided."
+    )
+    obd_data: Dict[str, Any] = Field(default_factory=dict, description="OBD sensor data dictionary")
+    description: Optional[str] = Field(None, description="Problem/symptom description (e.g., 'Rough idle, check engine light')")
     vehicle_context: Optional[Dict[str, Any]] = Field(None, description="Optional vehicle information (model, year, etc.)")
     session_id: Optional[str] = Field(None, description="Optional session ID for continuing existing conversation")
 

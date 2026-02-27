@@ -162,12 +162,20 @@ class RepairGuideMatcher:
         self.generate_reasoning = generate_reasoning
         self._reasoning_generator = ReasoningGenerator() if generate_reasoning else None
 
-        # Initialize encoder and vector store
-        logger.info("Initializing FaultCodeEncoder...")
-        self.encoder = FaultCodeEncoder()
-        
-        logger.info("Loading vector store configuration...")
+        # Initialize encoder and vector store (must match indexer config for dimension)
         paths = get_paths()
+        logger.info("Loading embedding configuration...")
+        with open(paths.embedding_config, 'r', encoding='utf-8') as f:
+            embedding_config = yaml.safe_load(f)
+        fc_config = embedding_config.get("models", {}).get("fault_code", {})
+        logger.info("Initializing FaultCodeEncoder...")
+        self.encoder = FaultCodeEncoder(
+            model_name=fc_config.get("model_name", "intfloat/e5-mistral-7b-instruct"),
+            device=fc_config.get("device", "auto"),
+            projection_dim=fc_config.get("projection_dim", 768),
+        )
+
+        logger.info("Loading vector store configuration...")
         with open(paths.retrieval_config, 'r', encoding='utf-8') as f:
             retrieval_config = yaml.safe_load(f)
         

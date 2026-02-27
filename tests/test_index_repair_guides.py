@@ -16,6 +16,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from index_repair_guides import RepairGuideIndexer
+from src.database.xml_content import XmlContentFetcher
 
 
 class TestRepairGuideIndexer:
@@ -319,6 +320,9 @@ class TestRepairGuideIndexer:
 
         mock_db = Mock()
         mock_db.get_fault_codes_for_procedure = Mock(return_value=["P0301", "P0302"])
+        mock_db.get_fault_labels_for_procedure = Mock(
+            return_value=["Engine Coolant Temperature Sensor Circuit Malfunction"]
+        )
         mock_ista_db_class.return_value = mock_db
         mock_encoder_class.return_value = Mock()
         mock_vector_store_class.return_value = Mock()
@@ -360,6 +364,7 @@ class TestRepairGuideIndexer:
 
         mock_db = Mock()
         mock_db.get_fault_codes_for_procedure = Mock(return_value=[])
+        mock_db.get_fault_labels_for_procedure = Mock(return_value=[])
         mock_ista_db_class.return_value = mock_db
         mock_encoder_class.return_value = Mock()
         mock_vector_store_class.return_value = Mock()
@@ -497,6 +502,7 @@ class TestRepairGuideIndexer:
             {"CONTENT_ENGB": "Test content"}
         ])
         mock_db.get_fault_codes_for_procedure = Mock(return_value=["P0301"])
+        mock_db.get_fault_labels_for_procedure = Mock(return_value=[])
         
         mock_encoder = Mock()
         mock_encoder.encode = Mock(return_value=torch.randn(1, 768))
@@ -567,6 +573,7 @@ class TestRepairGuideIndexer:
         
         mock_db.get_info_segments = Mock(side_effect=get_segments)
         mock_db.get_fault_codes_for_procedure = Mock(return_value=["P0301"])
+        mock_db.get_fault_labels_for_procedure = Mock(return_value=[])
         
         mock_encoder = Mock()
         mock_encoder.encode = Mock(return_value=torch.randn(1, 768))
@@ -611,6 +618,9 @@ class TestRepairGuideIndexer:
 
         mock_db = Mock()
         mock_db.get_fault_codes_for_procedure = Mock(return_value=["P0301", "P0302"])
+        mock_db.get_fault_labels_for_procedure = Mock(
+            return_value=["Engine Coolant Temperature Sensor Circuit Malfunction"]
+        )
         mock_ista_db_class.return_value = mock_db
         mock_encoder_class.return_value = Mock()
         mock_vector_store_class.return_value = Mock()
@@ -624,8 +634,40 @@ class TestRepairGuideIndexer:
         documents = indexer._process_procedure(procedure)
 
         mock_db.get_fault_codes_for_procedure.assert_called_once_with("proc1")
+        mock_db.get_fault_labels_for_procedure.assert_called_once_with("proc1")
         assert documents is not None
         assert documents[0]["fault_codes"] == ["P0301", "P0302"]
+        # Fault labels should appear in indexed text for semantic search
+        assert "Engine Coolant Temperature" in documents[0]["text"] or "P0301" in documents[0]["text"]
+
+
+class TestXmlContentFetcher:
+    """Test XmlContentFetcher problem/solution extraction."""
+
+    def test_extract_problem_solution_sections(self):
+        """Test extraction of problem/solution sections from procedure content."""
+        fetcher = XmlContentFetcher.__new__(XmlContentFetcher)
+        fetcher._conn = None  # Not needed for this method
+
+        # Content with Problem: and Solution: sections
+        xml = """
+        <doc>
+        <p>Problem: Engine overheating and coolant temperature warning light.</p>
+        <p>Solution: Replace radiator and check thermostat.</p>
+        <p>Step 1: Drain coolant...</p>
+        </doc>
+        """
+        result = fetcher.extract_problem_solution_sections(xml)
+        assert "Problem/Solution" in result
+        assert "overheating" in result or "coolant" in result
+        assert "radiator" in result or "thermostat" in result
+
+    def test_extract_problem_solution_empty(self):
+        """Test that content without problem/solution returns empty."""
+        fetcher = XmlContentFetcher.__new__(XmlContentFetcher)
+        xml = "<doc><p>Step 1: Remove bolt. Step 2: Install part.</p></doc>"
+        result = fetcher.extract_problem_solution_sections(xml)
+        assert result == ""
 
 
 class TestIndexerCLI:

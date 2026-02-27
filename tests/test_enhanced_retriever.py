@@ -129,10 +129,10 @@ def mock_components():
     feedback_collector = Mock()
     feedback_collector.get_procedure_score.return_value = 0.7
     
-    # Mock MultiModalEncoder
+    # Mock FaultCodeEncoder
     encoder = Mock()
     encoder.eval = Mock()
-    mock_embedding = torch.tensor([[0.1] * 768], dtype=torch.float32)
+    mock_embedding = torch.tensor([[0.1] * 1024], dtype=torch.float32)
     encoder.encode.return_value = mock_embedding
     
     return {
@@ -152,7 +152,7 @@ def test_enhanced_retriever_init(mock_config):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery') as mock_kg, \
          patch('src.retrieval.enhanced_retriever.Ranker') as mock_ranker, \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector') as mock_fb, \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder') as mock_encoder:
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder') as mock_encoder:
         
         mock_vs.return_value = Mock()
         mock_reranker.return_value = Mock(enabled=True)
@@ -183,13 +183,12 @@ def test_stage1_vector_search(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
         candidates = retriever._stage1_vector_search(
-            fault_codes=["P0301"],
-            obd_data={"rpm": 2000}
+            query_text="Fault codes: P0301. Problem: Rough idle"
         )
         
         assert len(candidates) == 2
@@ -206,14 +205,11 @@ def test_stage1_vector_search_error(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
-        candidates = retriever._stage1_vector_search(
-            fault_codes=["P0301"],
-            obd_data=None
-        )
+        candidates = retriever._stage1_vector_search(query_text="P0301")
         
         assert len(candidates) == 0
 
@@ -230,7 +226,7 @@ def test_stage2_reranking(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
@@ -257,7 +253,7 @@ def test_stage2_reranking_disabled(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
@@ -284,7 +280,7 @@ def test_stage2_reranking_error(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
@@ -310,7 +306,7 @@ def test_stage3_kg_scoring(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
@@ -348,7 +344,7 @@ def test_stage3_kg_scoring_disabled(mock_config, mock_components):
              patch('src.retrieval.enhanced_retriever.Reranker', return_value=mock_components["reranker"]), \
              patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
              patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-             patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+             patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
             
             retriever = EnhancedRetriever(config_path=config_path)
             
@@ -376,7 +372,7 @@ def test_stage4_combined_scoring(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
@@ -402,7 +398,7 @@ def test_stage4_combined_scoring_error(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
@@ -423,7 +419,7 @@ def test_full_retrieval_pipeline(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
@@ -452,7 +448,7 @@ def test_retrieve_empty_fault_codes(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         
@@ -470,7 +466,7 @@ def test_retrieve_no_candidates_stage1(mock_config, mock_components):
          patch('src.retrieval.enhanced_retriever.KnowledgeGraphQuery', return_value=mock_components["kg_query"]), \
          patch('src.retrieval.enhanced_retriever.Ranker', return_value=mock_components["ranker"]), \
          patch('src.retrieval.enhanced_retriever.FeedbackCollector', return_value=mock_components["feedback_collector"]), \
-         patch('src.retrieval.enhanced_retriever.MultiModalEncoder', return_value=mock_components["encoder"]):
+         patch('src.retrieval.enhanced_retriever.FaultCodeEncoder', return_value=mock_components["encoder"]):
         
         retriever = EnhancedRetriever(config_path=mock_config)
         

@@ -289,3 +289,20 @@ class PromptTemplates:
             "system": system_prompt,
             "user": user_prompt
         }
+
+    def get_symptom_expansion_prompt(self, symptom: str) -> Optional[Dict[str, str]]:
+        """
+        Get symptom expansion prompt for bridging symptom->fix semantic gap.
+
+        Optional template - returns None if not configured.
+        """
+        if "symptom_expansion" not in self._templates:
+            return None
+        template = self._templates["symptom_expansion"]
+        if not isinstance(template, dict) or "system" not in template or "user_template" not in template:
+            return None
+        system_prompt = template["system"]
+        user_template = template["user_template"]
+        variables = {"symptom": symptom}
+        user_prompt = self._substitute_template(user_template, variables)
+        return {"system": system_prompt, "user": user_prompt}

@@ -75,3 +75,17 @@ prompts:
       User Responses: {user_responses}
       
       Expand the query with relevant context.
+
+  # Symptom expansion: bridge symptom descriptions to repair/fix terminology
+  # e.g. "engine too hot" -> "overheating, coolant, radiator, thermostat"
+  symptom_expansion:
+    system: |
+      You are an automotive diagnostic expert. Given a symptom description, output a short
+      comma-separated phrase of related terms for semantic search: causes, components,
+      and typical repairs. This helps match symptom descriptions (e.g. "engine too hot")
+      to repair procedures (e.g. "radiator replacement").
+      Output ONLY the comma-separated phrase, no explanation.
+    user_template: |
+      Symptom: {symptom}
+      
+      Related causes, components, and repairs (comma-separated):

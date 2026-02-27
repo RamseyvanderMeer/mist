@@ -18,7 +18,7 @@ from src.retrieval.reranker import Reranker, RerankerAPIError, RerankerModelErro
 from src.retrieval.ranker import Ranker, RankerError
 from src.knowledge.graph_query import KnowledgeGraphQuery
 from src.feedback.collector import FeedbackCollector
-from src.embeddings.multimodal_encoder import MultiModalEncoder
+from src.embeddings.fault_code_encoder import FaultCodeEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -109,18 +109,22 @@ class EnhancedRetriever:
                 logger.warning(f"Failed to initialize FeedbackCollector: {e}. Continuing without feedback.")
                 self.feedback_collector = None
             
-            # MultiModalEncoder
-            # Load embedding config for encoder
+            # FaultCodeEncoder - must match index (procedure text encoded with is_query=False)
+            # Query uses is_query=True for E5 asymmetric retrieval
             embedding_config_path = paths.embedding_config
-            embedding_config = None
+            embedding_config = {}
             if embedding_config_path.exists():
                 try:
                     with open(embedding_config_path, 'r', encoding='utf-8') as f:
-                        embedding_config = yaml.safe_load(f)
+                        embedding_config = yaml.safe_load(f) or {}
                 except Exception as e:
                     logger.warning(f"Failed to load embedding config: {e}. Using defaults.")
-            
-            self.encoder = MultiModalEncoder(config=embedding_config)
+            fc_config = embedding_config.get("models", {}).get("fault_code", {})
+            self.encoder = FaultCodeEncoder(
+                model_name=fc_config.get("model_name", "intfloat/e5-mistral-7b-instruct"),
+                device=fc_config.get("device", "auto"),
+                projection_dim=fc_config.get("projection_dim", 1024),
+            )
             
             logger.info(
                 f"Initialized EnhancedRetriever: initial_k={self.initial_k}, "
@@ -135,6 +139,8 @@ class EnhancedRetriever:
         fault_codes: List[str],
         obd_data: Optional[Dict[str, Any]] = None,
         query_text: Optional[str] = None,
+        description: Optional[str] = None,
+        search_query_text: Optional[str] = None,
         top_k: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -143,7 +149,9 @@ class EnhancedRetriever:
         Args:
             fault_codes: List of fault code strings (e.g., ["P0301", "P0302"])
             obd_data: Optional OBD sensor data dictionary
-            query_text: Optional query text for re-ranking. If None, generated from fault codes.
+            query_text: Optional query text for re-ranking. If None, built from fault_codes + description.
+            description: Optional problem/symptom description for semantic search.
+            search_query_text: Override for vector search query (e.g. expanded query from clarification).
             top_k: Number of final results to return. If None, uses config final_k.
         
         Returns:
@@ -159,13 +167,25 @@ class EnhancedRetriever:
         """
         if top_k is None:
             top_k = self.final_k
-        
-        if not fault_codes:
-            logger.warning("No fault codes provided, returning empty results")
+
+        # Allow description-only retrieval (symptom-based search when no fault codes)
+        has_query = (
+            (fault_codes and len(fault_codes) > 0)
+            or (description and description.strip())
+            or (search_query_text and search_query_text.strip())
+        )
+        if not has_query:
+            logger.warning("No fault codes or description provided, returning empty results")
             return []
         
-        # Stage 1: Vector search
-        candidates = self._stage1_vector_search(fault_codes, obd_data)
+        # Build query text for vector search and re-ranking
+        if search_query_text is None:
+            search_query_text = self._build_query_text(fault_codes, description)
+        if query_text is None:
+            query_text = search_query_text
+        
+        # Stage 1: Vector search (FaultCodeEncoder, same space as indexed procedure text)
+        candidates = self._stage1_vector_search(search_query_text)
         if not candidates:
             logger.warning("Stage 1 returned no candidates")
             return []
@@ -185,50 +205,53 @@ class EnhancedRetriever:
         # Return top_k results
         return ranked_results[:top_k]
     
-    def _stage1_vector_search(
+    def _build_query_text(
         self,
         fault_codes: List[str],
-        obd_data: Optional[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        description: Optional[str] = None
+    ) -> str:
+        """Build query text for vector search from fault codes and optional description."""
+        if fault_codes:
+            fault_text = ", ".join(fault_codes)
+            if description and description.strip():
+                return f"Fault codes: {fault_text}. Problem: {description.strip()}"
+            return fault_text
+        if description and description.strip():
+            return f"Problem: {description.strip()}"
+        return ""
+
+    def _stage1_vector_search(self, query_text: str) -> List[Dict[str, Any]]:
         """
         Stage 1: Vector search for initial candidates.
         
+        Uses FaultCodeEncoder (same as index) with is_query=True for E5 asymmetric retrieval.
+        Index stores procedure text with is_query=False.
+        
         Args:
-            fault_codes: List of fault code strings
-            obd_data: Optional OBD sensor data
+            query_text: Query text (fault codes + optional problem description)
         
         Returns:
             List of candidate dictionaries from vector search
         """
         try:
-            # Encode fault codes + OBD data
-            logger.debug(f"Encoding {len(fault_codes)} fault codes with OBD data")
+            logger.debug(f"Encoding query: {query_text[:100]}...")
             
-            # Convert fault codes to single string for encoding
-            fault_text = ", ".join(fault_codes)
-            
-            # Encode
             self.encoder.eval()
             with torch.no_grad():
-                query_embedding = self.encoder.encode(fault_codes=fault_text, obd_data=obd_data)
+                query_embedding = self.encoder.encode(
+                    query_text, normalize=True, is_query=True
+                )
             
-            # Convert to numpy array
             if isinstance(query_embedding, torch.Tensor):
                 query_embedding = query_embedding.cpu().numpy()
             
-            # Ensure 1D array
             if query_embedding.ndim > 1:
                 query_embedding = query_embedding.flatten()
             
-            # Optional: Filter by fault codes in metadata
-            filter_dict = None
-            # Note: VectorStore search supports filter_dict, but we'll let it handle it
-            
-            # Search vector store
             candidates = self.vector_store.search(
                 query_embedding=query_embedding,
                 top_k=self.initial_k,
-                filter_dict=filter_dict
+                filter_dict=None
             )
             
             logger.info(f"Stage 1: Retrieved {len(candidates)} candidates")

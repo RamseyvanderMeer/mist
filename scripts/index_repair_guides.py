@@ -383,16 +383,30 @@ class RepairGuideIndexer:
                 return None
             
             fault_codes = self.ista_db.get_fault_codes_for_procedure(procedure_id)
+            fault_labels = self.ista_db.get_fault_labels_for_procedure(procedure_id)
             title = procedure.get("title_engb") or procedure.get("name", "")
             name = procedure.get("name", "")
+
+            # Include DB fault codes and labels in text for semantic search
+            # - Fault codes: align with query format
+            # - Fault labels: problem/symptom descriptions (e.g. "Engine Coolant Temperature Sensor
+            #   Circuit Malfunction") help match user symptoms like "engine too hot" to procedures
+            prefix_parts = []
+            if fault_codes:
+                prefix_parts.append(f"Fault codes: {', '.join(fault_codes)}.")
+            if fault_labels:
+                prefix_parts.append(f"Problem descriptions: {'; '.join(fault_labels[:5])}.")
+            fault_prefix = "\n\n".join(prefix_parts) + "\n\n" if prefix_parts else ""
             
             chunks = self._chunk_text(text_content)
             documents = []
             for i, chunk_text in enumerate(chunks):
                 doc_id = f"{procedure_id}_chunk_{i}" if len(chunks) > 1 else procedure_id
+                # Prepend fault codes to text for encoding (aligns with query format)
+                text_for_embedding = fault_prefix + chunk_text
                 documents.append({
                     "id": doc_id,
-                    "text": chunk_text,
+                    "text": text_for_embedding,
                     "title": title,
                     "procedure_id": procedure_id,
                     "procedure_name": name,

@@ -57,7 +57,8 @@ class SessionManager:
         self,
         fault_codes: List[str],
         obd_data: Dict[str, Any],
-        vehicle_context: Optional[Dict[str, Any]] = None
+        vehicle_context: Optional[Dict[str, Any]] = None,
+        description: Optional[str] = None
     ) -> str:
         """
         Create a new session with UUID.
@@ -66,6 +67,7 @@ class SessionManager:
             fault_codes: List of fault code strings (e.g., ["P0301", "P0302"])
             obd_data: Dictionary of OBD sensor data
             vehicle_context: Optional vehicle information (stored in obd_data if provided)
+            description: Optional problem/symptom description (stored in obd_data for clarify flow)
         
         Returns:
             session_id: The generated session UUID
@@ -79,6 +81,9 @@ class SessionManager:
         # Merge vehicle_context into obd_data if provided
         if vehicle_context:
             obd_data = {**obd_data, **vehicle_context}
+        # Store description for clarify flow (no schema change)
+        if description:
+            obd_data = {**obd_data, "_query_description": description}
         
         try:
             with self._connection.session() as session:
@@ -125,11 +130,13 @@ class SessionManager:
                     logger.debug(f"Session {session_id} not found")
                     return None
                 
+                obd = feedback_session.get_obd_data() or {}
                 # Build result dictionary using helper methods
                 result = {
                     "session_id": feedback_session.session_id,
                     "fault_codes": feedback_session.get_fault_codes(),
-                    "obd_data": feedback_session.get_obd_data(),
+                    "obd_data": obd,
+                    "description": obd.get("_query_description"),
                     "clarification_questions": feedback_session.get_clarification_questions(),
                     "user_responses": feedback_session.get_user_responses(),
                     "recommended_guides": feedback_session.get_recommended_guides(),

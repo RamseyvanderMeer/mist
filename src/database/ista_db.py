@@ -427,7 +427,60 @@ class IstaDatabase:
         except Exception as e:
             logger.error(f"Error querying fault codes for procedure {procedure_id}: {e}")
             raise
-    
+
+    def get_fault_labels_for_procedure(self, procedure_id: str) -> List[str]:
+        """
+        Get human-readable fault labels/descriptions for a repair procedure.
+
+        Returns problem/symptom descriptions (e.g. "Engine Coolant Temperature Sensor
+        Circuit Malfunction") that help semantic search match user symptoms to procedures.
+
+        Args:
+            procedure_id: Procedure ID from XEP_INFOOBJECTS table
+
+        Returns:
+            List of label strings (TITLE_ENGB, LABEL, or DESCRIPTION from XEP_FAULTLABELS)
+        """
+        try:
+            with self._connection.session() as session:
+                # Try FAULTCODE_ID join (common schema); fallback to ID=ID
+                for join_clause in [
+                    "LEFT JOIN XEP_FAULTLABELS fl ON fc.ID = fl.FAULTCODE_ID",
+                    "LEFT JOIN XEP_FAULTLABELS fl ON fc.ID = fl.ID",
+                ]:
+                    try:
+                        result = session.execute(
+                            text(f"""
+                                SELECT DISTINCT fc.CODE, fl.TITLE_ENGB
+                                FROM XEP_FAULTCODES fc
+                                INNER JOIN RG_ECUFAULT_DOCIDS rg ON fc.ID = rg.ECUFAULT_ID
+                                {join_clause}
+                                WHERE rg.INFOOBJECTID = :procedure_id
+                                AND fc.CODE IS NOT NULL
+                            """),
+                            {"procedure_id": procedure_id},
+                        )
+                        rows = result.fetchall()
+                        labels = []
+                        for row in rows:
+                            label = None
+                            if hasattr(row, "_mapping"):
+                                label = row._mapping.get("TITLE_ENGB")
+                            elif hasattr(row, "_asdict"):
+                                label = row._asdict().get("TITLE_ENGB")
+                            else:
+                                label = row[1] if len(row) > 1 else None
+                            if label and str(label).strip():
+                                labels.append(str(label).strip())
+                        if labels:
+                            return labels
+                    except Exception:
+                        continue
+                return []
+        except Exception as e:
+            logger.debug(f"Could not get fault labels for procedure {procedure_id}: {e}")
+            return []
+
     def get_procedures_for_fault(self, fault_code: str) -> List[Dict[str, Any]]:
         """
         Get repair procedures linked to a fault code.

@@ -105,7 +105,8 @@ async def query(
         # Call ConversationalRAG.query()
         result = rag.query(
             fault_codes=request.fault_codes,
-            obd_data=request.obd_data,
+            obd_data=request.obd_data or {},
+            description=request.description,
             vehicle_context=request.vehicle_context,
             session_id=request.session_id
         )
