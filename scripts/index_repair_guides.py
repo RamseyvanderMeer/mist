@@ -4,12 +4,19 @@ Index repair guides from BMW ISTA database into vector store.
 
 This script loads repair procedures from the ISTA database, encodes their content,
 and stores embeddings in the ChromaDB vector store for semantic search.
+
+Multi-machine mode (when DATABASE_URL is set):
+  1. Run migration: python scripts/run_indexing_work_migration.py
+  2. Seed work queue (once): python scripts/index_repair_guides.py --seed-only
+  3. Start workers (each machine): python scripts/index_repair_guides.py --worker-id machine-1 --batch-size 512
 """
+import os
 import sys
 import argparse
 import json
 import time
 import signal
+import socket
 from pathlib import Path
 from typing import Set, List, Dict, Any, Optional
 from datetime import datetime
@@ -36,6 +43,126 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def _ensure_indexing_work_table(engine) -> None:
+    """Create indexing_work table if it does not exist."""
+    migration_file = Path(__file__).parent.parent / "scripts" / "migrations" / "create_indexing_work_postgres.sql"
+    if not migration_file.exists():
+        raise FileNotFoundError(f"Migration file not found: {migration_file}")
+    from sqlalchemy import text
+    with open(migration_file, "r") as f:
+        sql = f.read()
+    with engine.connect() as conn:
+        for stmt in (s.strip() for s in sql.split(";") if s.strip() and not s.strip().startswith("--")):
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception as e:
+                if "already exists" not in str(e).lower():
+                    raise
+
+
+def _seed_indexing_work(engine, procedure_ids: List[str]) -> int:
+    """Insert procedure IDs into indexing_work as pending. Returns count of new rows added."""
+    from sqlalchemy import text
+    stmt = text("""
+        INSERT INTO indexing_work (procedure_id, status)
+        VALUES (:pid, 'pending')
+        ON CONFLICT (procedure_id) DO NOTHING
+    """)
+    added = 0
+    with engine.connect() as conn:
+        for pid in procedure_ids:
+            try:
+                result = conn.execute(stmt, {"pid": pid})
+                conn.commit()
+                if result.rowcount and result.rowcount > 0:
+                    added += 1
+            except Exception:
+                conn.rollback()
+    return added
+
+
+def _claim_batch(engine, worker_id: str, batch_size: int) -> List[str]:
+    """Claim a batch of pending procedures. Returns list of procedure_ids."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        # Use FOR UPDATE SKIP LOCKED so multiple workers get different rows
+        result = conn.execute(
+            text("""
+                WITH claimed AS (
+                    SELECT procedure_id FROM indexing_work
+                    WHERE status = 'pending'
+                    LIMIT :batch_size
+                    FOR UPDATE SKIP LOCKED
+                )
+                UPDATE indexing_work iw
+                SET status = 'in_progress', worker_id = :worker_id, started_at = NOW()
+                FROM claimed c
+                WHERE iw.procedure_id = c.procedure_id
+                RETURNING iw.procedure_id
+            """),
+            {"worker_id": worker_id, "batch_size": batch_size}
+        )
+        ids = [row[0] for row in result]
+        conn.commit()
+        return ids
+
+
+def _mark_completed(engine, procedure_id: str) -> None:
+    """Mark a procedure as completed."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        conn.execute(
+            text("""
+                UPDATE indexing_work
+                SET status = 'completed', completed_at = NOW()
+                WHERE procedure_id = :pid
+            """),
+            {"pid": procedure_id}
+        )
+        conn.commit()
+
+
+def _mark_failed(engine, procedure_id: str, error_message: str) -> None:
+    """Mark a procedure as failed."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        conn.execute(
+            text("""
+                UPDATE indexing_work
+                SET status = 'failed', completed_at = NOW(), error_message = :err
+                WHERE procedure_id = :pid
+            """),
+            {"pid": procedure_id, "err": (error_message or "")[:1000]}
+        )
+        conn.commit()
+
+
+def _get_pending_count(engine) -> int:
+    """Return count of pending procedures."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT COUNT(*) FROM indexing_work WHERE status = 'pending'"))
+        return result.scalar() or 0
+
+
+def _reset_stuck(engine, older_than_minutes: int = 60) -> int:
+    """Reset in_progress to pending for rows older than threshold (e.g. crashed workers)."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                UPDATE indexing_work
+                SET status = 'pending', worker_id = NULL, started_at = NULL
+                WHERE status = 'in_progress'
+                AND started_at < NOW() - INTERVAL '1 minute' * :mins
+            """),
+            {"mins": older_than_minutes}
+        )
+        conn.commit()
+        return result.rowcount or 0
 
 
 class RepairGuideIndexer:
@@ -143,6 +270,17 @@ class RepairGuideIndexer:
         logger.info("Shutdown signal received. Saving progress...")
         self.shutdown_requested = True
     
+    def _get_procedure_by_id(self, procedure_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single procedure by ID. Returns None if not found."""
+        obj = self.ista_db.get_info_object(procedure_id)
+        if not obj:
+            return None
+        return {
+            "id": str(obj.get("ID", procedure_id)),
+            "title_engb": str(obj.get("TITLE_ENGB", "") or ""),
+            "name": str(obj.get("NAME", "") or ""),
+        }
+
     def _get_all_procedures(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Get all repair procedures from database.
@@ -434,7 +572,131 @@ class RepairGuideIndexer:
         logger.info(f"Statistics: {json.dumps(stats, indent=2)}")
         
         return stats
-    
+
+    def index_with_db(
+        self,
+        db_url: str,
+        worker_id: str,
+        seed: bool = False,
+        seed_only: bool = False,
+        reset_stuck_minutes: Optional[int] = None,
+        progress_interval: int = 100,
+    ) -> Dict[str, Any]:
+        """
+        Index using shared PostgreSQL work queue (multi-machine safe).
+
+        Args:
+            db_url: PostgreSQL connection URL
+            worker_id: Unique identifier for this worker
+            seed: If True, populate work queue from ISTA before indexing
+            seed_only: If True, only seed and exit
+            reset_stuck_minutes: If set, reset in_progress older than N min to pending
+            progress_interval: Log progress every N procedures
+
+        Returns:
+            Dictionary with indexing statistics
+        """
+        from sqlalchemy import create_engine
+        engine = create_engine(db_url)
+        _ensure_indexing_work_table(engine)
+
+        if seed or seed_only:
+            procedures = self._get_all_procedures()
+            procedure_ids = [p["id"] for p in procedures]
+            logger.info(f"Seeding indexing_work with {len(procedure_ids)} procedure IDs...")
+            added = _seed_indexing_work(engine, procedure_ids)
+            logger.info(f"Seeded {added} new procedures (existing skipped)")
+            if seed_only:
+                return {"seeded": added, "total": len(procedure_ids)}
+
+        if reset_stuck_minutes is not None:
+            reset = _reset_stuck(engine, reset_stuck_minutes)
+            if reset:
+                logger.info(f"Reset {reset} stuck in_progress rows to pending")
+
+        self.start_time = time.time()
+        self.processed_count = 0
+        self.error_count = 0
+
+        total_indexed = 0
+        total_errors = 0
+
+        while not self.shutdown_requested:
+            claimed = _claim_batch(engine, worker_id, self.batch_size)
+            if not claimed:
+                pending = _get_pending_count(engine)
+                if pending == 0:
+                    logger.info("No more work. All procedures indexed.")
+                    break
+                logger.debug(f"No work claimed (others may be processing). Pending: {pending}. Retrying...")
+                time.sleep(2)
+                continue
+
+            batch_documents = []
+            for procedure_id in claimed:
+                try:
+                    procedure = self._get_procedure_by_id(procedure_id)
+                    if not procedure:
+                        _mark_failed(engine, procedure_id, "Procedure not found in ISTA")
+                        total_errors += 1
+                        continue
+
+                    documents = self._process_procedure(procedure)
+                    if documents is None:
+                        _mark_failed(engine, procedure_id, "Processing failed")
+                        total_errors += 1
+                        continue
+
+                    for doc in documents:
+                        batch_documents.append(doc)
+                    self.processed_count += 1
+
+                except Exception as e:
+                    logger.error(f"Error processing {procedure_id}: {e}", exc_info=True)
+                    _mark_failed(engine, procedure_id, str(e))
+                    total_errors += 1
+
+            if batch_documents:
+                try:
+                    embeddings = self._encode_batch(batch_documents)
+                    self._store_batch(batch_documents, embeddings)
+                    completed_ids = set()
+                    for doc in batch_documents:
+                        pid = str(doc.get("procedure_id", doc["id"]))
+                        if "_chunk_" in pid:
+                            pid = pid.split("_chunk_")[0]
+                        completed_ids.add(pid)
+                    for pid in completed_ids:
+                        _mark_completed(engine, pid)
+                    total_indexed += len(completed_ids)
+                except Exception as e:
+                    logger.error(f"Error storing batch: {e}", exc_info=True)
+                    for procedure_id in claimed:
+                        _mark_failed(engine, procedure_id, str(e))
+
+            if self.processed_count % progress_interval == 0:
+                elapsed = time.time() - self.start_time
+                rate = self.processed_count / elapsed if elapsed > 0 else 0
+                pending = _get_pending_count(engine)
+                logger.info(
+                    f"Worker {worker_id}: {self.processed_count} processed | "
+                    f"Indexed: {total_indexed} | Errors: {total_errors} | "
+                    f"Pending: {pending} | Rate: {rate:.1f}/s"
+                )
+
+        elapsed_time = time.time() - self.start_time
+        stats = {
+            "processed": self.processed_count,
+            "indexed": total_indexed,
+            "errors": total_errors,
+            "elapsed_time_seconds": elapsed_time,
+            "elapsed_time_minutes": elapsed_time / 60,
+            "rate_per_second": self.processed_count / elapsed_time if elapsed_time > 0 else 0,
+        }
+        logger.info("Indexing complete!")
+        logger.info(f"Statistics: {json.dumps(stats, indent=2)}")
+        return stats
+
     def close(self):
         """Close database connections."""
         if hasattr(self, "xml_fetcher"):
@@ -482,20 +744,50 @@ def main():
         default=100,
         help="Log progress every N procedures (default: 100)"
     )
-    
+    parser.add_argument(
+        "--worker-id",
+        type=str,
+        default=None,
+        help="Worker ID for multi-machine mode (default: hostname). Requires DATABASE_URL."
+    )
+    parser.add_argument(
+        "--seed",
+        action="store_true",
+        help="Populate work queue from ISTA before indexing (multi-machine mode)"
+    )
+    parser.add_argument(
+        "--seed-only",
+        action="store_true",
+        help="Only populate work queue and exit (run once before starting workers)"
+    )
+    parser.add_argument(
+        "--reset-stuck",
+        type=int,
+        metavar="MINUTES",
+        default=4,
+        help="Reset in_progress rows older than N minutes to pending (for crashed workers)"
+    )
+
     args = parser.parse_args()
-    
+
+    db_url = os.environ.get("DATABASE_URL", "")
+    use_db = bool(db_url and db_url.startswith("postgresql"))
+
+    worker_id = args.worker_id or socket.gethostname() or f"worker-{os.getpid()}"
+    if use_db:
+        logger.info(f"Multi-machine mode: worker_id={worker_id}")
+
     # Get paths
     paths = get_paths()
-    
+
     # Load configs
     logger.info("Loading configurations...")
     with open(paths.embedding_config, 'r') as f:
         embedding_config = yaml.safe_load(f)
-    
+
     with open(paths.retrieval_config, 'r') as f:
         retrieval_config = yaml.safe_load(f)
-    
+
     # Initialize indexer
     checkpoint_file = Path(args.checkpoint_file) if args.checkpoint_file else None
     indexer = RepairGuideIndexer(
@@ -504,33 +796,59 @@ def main():
         checkpoint_file=checkpoint_file,
         batch_size=args.batch_size
     )
-    
+
     try:
-        # Run indexing
-        stats = indexer.index(
-            limit=args.limit,
-            resume=args.resume,
-            progress_interval=args.progress_interval
-        )
-        
-        # Print summary
-        print("\n" + "="*60)
-        print("INDEXING SUMMARY")
-        print("="*60)
-        print(f"Total procedures found: {stats['total_procedures']}")
-        print(f"Procedures processed: {stats['processed']}")
-        print(f"Procedures indexed: {stats['indexed']}")
-        print(f"Errors: {stats['errors']}")
-        print(f"Elapsed time: {stats['elapsed_time_minutes']:.1f} minutes")
-        print(f"Rate: {stats['rate_per_second']:.2f} procedures/second")
-        print("="*60)
-        
+        if use_db:
+            if args.seed_only and not args.seed:
+                args.seed = True
+            stats = indexer.index_with_db(
+                db_url=db_url,
+                worker_id=worker_id,
+                seed=args.seed,
+                seed_only=args.seed_only,
+                reset_stuck_minutes=args.reset_stuck,
+                progress_interval=args.progress_interval,
+            )
+            print("\n" + "=" * 60)
+            print("INDEXING SUMMARY (multi-machine)")
+            print("=" * 60)
+            if "seeded" in stats:
+                print(f"Seeded: {stats['seeded']} new procedures")
+                print(f"Total in queue: {stats.get('total', 'N/A')}")
+            else:
+                print(f"Procedures processed: {stats['processed']}")
+                print(f"Procedures indexed: {stats['indexed']}")
+                print(f"Errors: {stats['errors']}")
+                print(f"Elapsed time: {stats['elapsed_time_minutes']:.1f} minutes")
+                print(f"Rate: {stats['rate_per_second']:.2f} procedures/second")
+            print("=" * 60)
+        else:
+            if args.seed or args.seed_only:
+                logger.warning("DATABASE_URL not set. --seed/--seed-only require PostgreSQL. Using local mode.")
+            stats = indexer.index(
+                limit=args.limit,
+                resume=args.resume,
+                progress_interval=args.progress_interval
+            )
+            print("\n" + "=" * 60)
+            print("INDEXING SUMMARY")
+            print("=" * 60)
+            print(f"Total procedures found: {stats['total_procedures']}")
+            print(f"Procedures processed: {stats['processed']}")
+            print(f"Procedures indexed: {stats['indexed']}")
+            print(f"Errors: {stats['errors']}")
+            print(f"Elapsed time: {stats['elapsed_time_minutes']:.1f} minutes")
+            print(f"Rate: {stats['rate_per_second']:.2f} procedures/second")
+            print("=" * 60)
+
     except KeyboardInterrupt:
         logger.info("Interrupted by user. Saving progress...")
-        indexer._save_checkpoint()
+        if not use_db:
+            indexer._save_checkpoint()
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
-        indexer._save_checkpoint()
+        if not use_db:
+            indexer._save_checkpoint()
         sys.exit(1)
     finally:
         indexer.close()
