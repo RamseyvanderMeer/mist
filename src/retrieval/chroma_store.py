@@ -143,10 +143,12 @@ class ChromaVectorStore:
                             metadata[f"meta_{k}"] = v
                 metadatas.append(metadata)
 
-            for i in range(0, len(ids), batch_size):
-                batch_ids = ids[i : i + batch_size]
-                batch_emb = emb_list[i : i + batch_size]
-                batch_meta = metadatas[i : i + batch_size]
+            # ChromaDB Cloud limits upsert to 300 per request; split if needed
+            upload_chunk = min(batch_size, 300)
+            for i in range(0, len(ids), upload_chunk):
+                batch_ids = ids[i : i + upload_chunk]
+                batch_emb = emb_list[i : i + upload_chunk]
+                batch_meta = metadatas[i : i + upload_chunk]
                 self.collection.upsert(
                     ids=batch_ids,
                     embeddings=batch_emb,

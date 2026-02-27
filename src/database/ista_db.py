@@ -11,6 +11,7 @@ from sqlalchemy import text, inspect
 from sqlalchemy.orm import Session
 
 from .connection import DatabaseConnection, create_connection
+from .fault_code_mapping import get_lookup_variants
 
 logger = logging.getLogger(__name__)
 
@@ -485,50 +486,67 @@ class IstaDatabase:
         """
         Get repair procedures linked to a fault code.
         
+        Tries OBD-II P-code and BMW ISTA variants (e.g. P0015 -> 2A87).
+        
         Args:
-            fault_code: Fault code (e.g., "P0301")
+            fault_code: Fault code (e.g., "P0301" or "2A87")
         
         Returns:
             List of dictionaries with procedure information
         """
         try:
+            variants = get_lookup_variants(fault_code)
             with self._connection.session() as session:
-                # First, get fault code ID
-                fault_result = session.execute(
-                    text("SELECT ID FROM XEP_FAULTCODES WHERE CODE = :code LIMIT 1"),
-                    {"code": fault_code}
-                )
-                fault_row = fault_result.fetchone()
-                
+                fault_row = None
+                for code in variants:
+                    fault_result = session.execute(
+                        text("SELECT ID FROM XEP_FAULTCODES WHERE CODE = :code LIMIT 1"),
+                        {"code": code}
+                    )
+                    fault_row = fault_result.fetchone()
+                    if fault_row is not None:
+                        break
+
                 if fault_row is None:
-                    logger.warning(f"Fault code {fault_code} not found")
+                    logger.warning(f"Fault code {fault_code} not found (tried: {variants})")
                     return []
                 
                 fault_id = fault_row[0]
                 
                 # Query RG_ECUFAULT_DOCIDS for linked procedures
-                result = session.execute(
-                    text("""
-                        SELECT io.*
-                        FROM XEP_INFOOBJECTS io
-                        INNER JOIN RG_ECUFAULT_DOCIDS rg ON io.ID = rg.DOCID
-                        WHERE rg.FAULTCODE_ID = :fault_id
-                    """),
-                    {"fault_id": fault_id}
-                )
-                rows = result.fetchall()
-                
-                # Convert rows to dictionaries (SQLAlchemy 2.0 compatible)
-                result_list = []
-                for row in rows:
-                    if hasattr(row, '_mapping'):
-                        result_list.append(dict(row._mapping))
-                    elif hasattr(row, '_asdict'):
-                        result_list.append(row._asdict())
-                    else:
-                        # Fallback: create dict from row keys and values
-                        result_list.append({key: getattr(row, key) for key in row.keys()})
-                return result_list
+                # Schema varies: ECUFAULT_ID/INFOOBJECTID (docs) vs FAULTCODE_ID/DOCID (tests)
+                for fault_col, proc_col in [
+                    ("ECUFAULT_ID", "INFOOBJECTID"),
+                    ("ECUFAULT_ID", "DOCID"),
+                    ("FAULTCODE_ID", "INFOOBJECTID"),
+                    ("FAULTCODE_ID", "DOCID"),
+                ]:
+                    try:
+                        result = session.execute(
+                            text(f"""
+                                SELECT io.*
+                                FROM XEP_INFOOBJECTS io
+                                INNER JOIN RG_ECUFAULT_DOCIDS rg ON io.ID = rg.{proc_col}
+                                WHERE rg.{fault_col} = :fault_id
+                            """),
+                            {"fault_id": fault_id},
+                        )
+                        rows = result.fetchall()
+                        if rows:
+                            result_list = []
+                            for row in rows:
+                                if hasattr(row, "_mapping"):
+                                    result_list.append(dict(row._mapping))
+                                elif hasattr(row, "_asdict"):
+                                    result_list.append(row._asdict())
+                                else:
+                                    result_list.append(
+                                        {key: getattr(row, key) for key in row.keys()}
+                                    )
+                            return result_list
+                    except Exception:
+                        continue
+                return []
         except Exception as e:
             logger.error(f"Error querying procedures for fault {fault_code}: {e}")
             raise

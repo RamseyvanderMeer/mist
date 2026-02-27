@@ -165,6 +165,21 @@ def _reset_stuck(engine, older_than_minutes: int = 60) -> int:
         return result.rowcount or 0
 
 
+def _reset_all_to_pending(engine) -> int:
+    """Reset all indexing_work rows to pending (for --no-resume in multi-machine mode)."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                UPDATE indexing_work
+                SET status = 'pending', worker_id = NULL, started_at = NULL,
+                    completed_at = NULL, error_message = NULL
+            """)
+        )
+        conn.commit()
+        return result.rowcount or 0
+
+
 class RepairGuideIndexer:
     """Indexes repair guides from ISTA database into vector store."""
     
@@ -484,6 +499,17 @@ class RepairGuideIndexer:
             Dictionary with indexing statistics
         """
         logger.info("Starting repair guide indexing...")
+        
+        # Clear progress when --no-resume (fresh start)
+        if not resume:
+            self.indexed_ids = set()
+            self.processed_count = 0
+            if self.checkpoint_file.exists():
+                try:
+                    self.checkpoint_file.unlink()
+                    logger.info("Cleared checkpoint for fresh start (--no-resume)")
+                except Exception as e:
+                    logger.warning(f"Could not delete checkpoint file: {e}")
         
         # Get all procedures
         procedures = self._get_all_procedures(limit=limit)
@@ -815,6 +841,12 @@ def main():
         if use_db:
             if args.seed_only and not args.seed:
                 args.seed = True
+            if not args.resume:
+                from sqlalchemy import create_engine
+                engine = create_engine(db_url)
+                _ensure_indexing_work_table(engine)
+                reset = _reset_all_to_pending(engine)
+                logger.info("Reset %d work queue rows to pending (--no-resume)", reset)
             stats = indexer.index_with_db(
                 db_url=db_url,
                 worker_id=worker_id,
