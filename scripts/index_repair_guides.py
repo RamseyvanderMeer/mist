@@ -7,8 +7,9 @@ and stores embeddings in the ChromaDB vector store for semantic search.
 
 Multi-machine mode (when DATABASE_URL is set):
   1. Run migration: python scripts/run_indexing_work_migration.py
-  2. Seed work queue (once): python scripts/index_repair_guides.py --seed-only
-  3. Start workers (each machine): python scripts/index_repair_guides.py --worker-id machine-1 --batch-size 512
+  2. Start workers: python scripts/index_repair_guides.py --worker-id machine-1 --batch-size 512
+     (Workers auto-seed from ISTA when queue is empty; no separate --seed step needed.)
+  3. --no-resume: Truncate and re-seed the queue for a fresh start.
 """
 import os
 import sys
@@ -34,6 +35,8 @@ import logging
 import numpy as np
 import torch
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from sqlalchemy.exc import OperationalError
 
 # Load environment variables from .env file
 load_dotenv()
@@ -84,6 +87,24 @@ def _seed_indexing_work(engine, procedure_ids: List[str]) -> int:
     return added
 
 
+def _truncate_and_seed(engine, procedure_ids: List[str]) -> int:
+    """Truncate indexing_work and insert all procedure IDs. Returns total rows inserted."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        conn.execute(text("TRUNCATE TABLE indexing_work"))
+        conn.commit()
+    # Insert in batches (batch commits for speed)
+    stmt = text("INSERT INTO indexing_work (procedure_id, status) VALUES (:pid, 'pending')")
+    chunk_size = 5000
+    with engine.connect() as conn:
+        for i in range(0, len(procedure_ids), chunk_size):
+            chunk = procedure_ids[i : i + chunk_size]
+            for pid in chunk:
+                conn.execute(stmt, {"pid": pid})
+            conn.commit()
+    return len(procedure_ids)
+
+
 def _claim_batch(engine, worker_id: str, batch_size: int) -> List[str]:
     """Claim a batch of pending procedures. Returns list of procedure_ids."""
     from sqlalchemy import text
@@ -112,30 +133,57 @@ def _claim_batch(engine, worker_id: str, batch_size: int) -> List[str]:
 
 def _mark_completed(engine, procedure_id: str) -> None:
     """Mark a procedure as completed."""
+    _mark_completed_batch(engine, [procedure_id])
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=1, max=30),
+    retry=retry_if_exception_type(OperationalError),
+    reraise=True,
+)
+def _mark_completed_batch(engine, procedure_ids: List[str]) -> None:
+    """Mark multiple procedures as completed in one DB round-trip. Retries on connection errors."""
+    if not procedure_ids:
+        return
     from sqlalchemy import text
     with engine.connect() as conn:
         conn.execute(
             text("""
                 UPDATE indexing_work
                 SET status = 'completed', completed_at = NOW()
-                WHERE procedure_id = :pid
+                WHERE procedure_id = ANY(:pids)
             """),
-            {"pid": procedure_id}
+            {"pids": procedure_ids}
         )
         conn.commit()
 
 
 def _mark_failed(engine, procedure_id: str, error_message: str) -> None:
     """Mark a procedure as failed."""
+    _mark_failed_batch(engine, [procedure_id], error_message)
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=1, max=30),
+    retry=retry_if_exception_type(OperationalError),
+    reraise=True,
+)
+def _mark_failed_batch(engine, procedure_ids: List[str], error_message: str) -> None:
+    """Mark multiple procedures as failed in one DB round-trip. Retries on connection errors."""
+    if not procedure_ids:
+        return
     from sqlalchemy import text
+    err = (error_message or "")[:1000]
     with engine.connect() as conn:
         conn.execute(
             text("""
                 UPDATE indexing_work
                 SET status = 'failed', completed_at = NOW(), error_message = :err
-                WHERE procedure_id = :pid
+                WHERE procedure_id = ANY(:pids)
             """),
-            {"pid": procedure_id, "err": (error_message or "")[:1000]}
+            {"pids": procedure_ids, "err": err}
         )
         conn.commit()
 
@@ -160,21 +208,6 @@ def _reset_stuck(engine, older_than_minutes: int = 60) -> int:
                 AND started_at < NOW() - INTERVAL '1 minute' * :mins
             """),
             {"mins": older_than_minutes}
-        )
-        conn.commit()
-        return result.rowcount or 0
-
-
-def _reset_all_to_pending(engine) -> int:
-    """Reset all indexing_work rows to pending (for --no-resume in multi-machine mode)."""
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("""
-                UPDATE indexing_work
-                SET status = 'pending', worker_id = NULL, started_at = NULL,
-                    completed_at = NULL, error_message = NULL
-            """)
         )
         conn.commit()
         return result.rowcount or 0
@@ -637,7 +670,11 @@ class RepairGuideIndexer:
             Dictionary with indexing statistics
         """
         from sqlalchemy import create_engine
-        engine = create_engine(db_url)
+        engine = create_engine(
+            db_url,
+            pool_pre_ping=True,  # Test connection before use (avoids stale SSL)
+            pool_recycle=300,    # Recycle connections every 5 min (NeonDB idle timeout)
+        )
         _ensure_indexing_work_table(engine)
 
         if seed or seed_only:
@@ -666,6 +703,13 @@ class RepairGuideIndexer:
             if not claimed:
                 pending = _get_pending_count(engine)
                 if pending == 0:
+                    # Auto-seed if queue is empty (no separate --seed step needed)
+                    procedures = self._get_all_procedures()
+                    procedure_ids = [p["id"] for p in procedures]
+                    added = _seed_indexing_work(engine, procedure_ids)
+                    if added > 0:
+                        logger.info("Auto-seeded %d procedures (queue was empty)", added)
+                        continue
                     logger.info("No more work. All procedures indexed.")
                     break
                 logger.debug(f"No work claimed (others may be processing). Pending: {pending}. Retrying...")
@@ -706,13 +750,11 @@ class RepairGuideIndexer:
                         if "_chunk_" in pid:
                             pid = pid.split("_chunk_")[0]
                         completed_ids.add(pid)
-                    for pid in completed_ids:
-                        _mark_completed(engine, pid)
+                    _mark_completed_batch(engine, list(completed_ids))
                     total_indexed += len(completed_ids)
                 except Exception as e:
                     logger.error(f"Error storing batch: {e}", exc_info=True)
-                    for procedure_id in claimed:
-                        _mark_failed(engine, procedure_id, str(e))
+                    _mark_failed_batch(engine, claimed, str(e))
 
             if self.processed_count % progress_interval == 0:
                 elapsed = time.time() - self.start_time
@@ -758,7 +800,7 @@ def main():
         "--no-resume",
         dest="resume",
         action="store_false",
-        help="Start fresh, ignoring checkpoint"
+        help="Start fresh. Local: clear checkpoint. Multi-machine: truncate work queue and re-seed from ISTA."
     )
     parser.add_argument(
         "--batch-size",
@@ -843,10 +885,16 @@ def main():
                 args.seed = True
             if not args.resume:
                 from sqlalchemy import create_engine
-                engine = create_engine(db_url)
+                engine = create_engine(
+                    db_url,
+                    pool_pre_ping=True,
+                    pool_recycle=300,
+                )
                 _ensure_indexing_work_table(engine)
-                reset = _reset_all_to_pending(engine)
-                logger.info("Reset %d work queue rows to pending (--no-resume)", reset)
+                procedures = indexer._get_all_procedures()
+                procedure_ids = [p["id"] for p in procedures]
+                inserted = _truncate_and_seed(engine, procedure_ids)
+                logger.info("Reset and seeded %d procedures (--no-resume)", inserted)
             stats = indexer.index_with_db(
                 db_url=db_url,
                 worker_id=worker_id,
