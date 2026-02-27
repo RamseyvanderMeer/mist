@@ -143,7 +143,7 @@ for rec in recommendations:
 Key dependencies:
 - `sentence-transformers`: For E5-Mistral embeddings
 - `torch`: PyTorch for neural networks
-- `qdrant-client`: Vector database client
+- `chromadb`: Vector database client
 - `cohere`: Re-ranking API (optional)
 - `openai`, `anthropic`: LLM providers
 - `fastapi`: API server

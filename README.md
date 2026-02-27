@@ -50,9 +50,9 @@ MIST combines:
    # ANTHROPIC_API_KEY=your_anthropic_key
    # COHERE_API_KEY=your_cohere_key  # Optional, for re-ranking
    
-   # Optional: For cloud Qdrant vector store (see step 7):
-   # QDRANT_URL=https://your-cluster.qdrant.io
-   # QDRANT_API_KEY=your-qdrant-api-key
+   # ChromaDB Cloud (required for vector store, see step 7):
+   # CHROMA_DB_API_KEY=your-chromadb-api-key
+   # CHROMA_DB_TENANT=your-chromadb-tenant-id
    ```
 
 5. **Run database migrations**
@@ -65,24 +65,13 @@ MIST combines:
    python scripts/build_knowledge_graph.py
    ```
 
-7. **Configure vector store** (choose one option)
-
-   **Option A: Local storage** (default)
-   - No additional configuration needed
-   - Indexes are stored in `./data/vector_store`
-
-   **Option B: Cloud Qdrant** (recommended for production)
-   - Set environment variables in your `.env` file or export them:
+7. **Configure ChromaDB Cloud** (required for vector store)
+   - Set in `.env`:
      ```bash
-     export QDRANT_URL=https://your-cluster.qdrant.io
-     export QDRANT_API_KEY=your-api-key
+     CHROMA_DB_API_KEY=your-api-key
+     CHROMA_DB_TENANT=your-tenant-id
      ```
-   - Or update `config/retrieval_config.yaml`:
-     ```yaml
-     vector_store:
-       url: https://your-cluster.qdrant.io
-       api_key: your-api-key
-     ```
+   - See `config/retrieval_config.yaml` for collection and database settings.
 
 8. **Index repair guides** (one-time setup, may take a while)
    ```bash

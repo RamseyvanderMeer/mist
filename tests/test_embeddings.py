@@ -96,6 +96,19 @@ def test_fault_code_encoder_query_vs_document():
     assert sim > 0.3, f"Query-document similarity too low ({sim:.3f}). Check E5 encoding."
 
 
+def test_fault_code_encoder_projection_determinism():
+    """Projection layer uses fixed seed so index and match produce same embeddings."""
+    enc1 = FaultCodeEncoder(device="cpu")
+    enc2 = FaultCodeEncoder(device="cpu")
+    text = "Replace ignition coil"
+    with torch.no_grad():
+        e1 = enc1.encode(text, normalize=True, is_query=False)
+        e2 = enc2.encode(text, normalize=True, is_query=False)
+    if e1.dim() > 1:
+        e1, e2 = e1.squeeze(0), e2.squeeze(0)
+    assert torch.allclose(e1, e2, atol=1e-5), "Projection must be deterministic across encoder instances"
+
+
 def test_fault_code_encoder_device_storage():
     """Test that device is stored as instance variable"""
     encoder = FaultCodeEncoder(device="cpu")

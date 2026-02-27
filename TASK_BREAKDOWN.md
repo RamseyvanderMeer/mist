@@ -455,18 +455,18 @@ Tasks are numbered with format: `[PHASE]-[COMPONENT]-[NUMBER]`
 **Dependencies**: P0-CFG-001, P0-PATHS-003  
 **Complexity**: Medium
 
-**Description**: Create `VectorStore` class that wraps Qdrant client with MIST-specific interface.
+**Description**: Create `VectorStore` class that wraps ChromaDB client with MIST-specific interface.
 
 **Inputs**:
 - `config/retrieval_config.yaml`
-- Qdrant client library
+- ChromaDB client library
 - Implementation plan section 2.2.2
 
 **Outputs**:
 - `src/retrieval/vector_store.py` with `VectorStore` class
 
 **Acceptance Criteria**:
-- [ ] Initializes Qdrant collection (creates if not exists)
+- [ ] Initializes ChromaDB collection (creates if not exists)
 - [ ] Methods: `add()`, `search()`, `delete()`, `update()`
 - [ ] Supports metadata filtering
 - [ ] Handles 768-dim vectors
@@ -479,11 +479,11 @@ Tasks are numbered with format: `[PHASE]-[COMPONENT]-[NUMBER]`
 - `src/retrieval/vector_store.py`
 
 **Test Strategy**:
-- Unit test: Mock Qdrant client
+- Unit test: Mock ChromaDB client
 - Test collection creation
 - Test add/search/delete operations
 - Test metadata filtering
-- Integration test: Real Qdrant instance (optional)
+- Integration test: Real ChromaDB instance (optional)
 
 ---
 

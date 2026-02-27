@@ -41,7 +41,10 @@ class FaultCodeEncoder:
         
         try:
             self.model = SentenceTransformer(model_name, device=device)
-            # E5-Mistral outputs 4096-dim, need projection layer
+            # E5-Mistral outputs 4096-dim, need projection layer.
+            # CRITICAL: Use fixed seed so index and match use the SAME projection.
+            # Otherwise embeddings from different runs are in different spaces.
+            torch.manual_seed(42)
             self.projection = torch.nn.Linear(4096, projection_dim).to(device)
             logger.info(f"Loaded fault code encoder: {model_name} on {device}")
         except torch.cuda.OutOfMemoryError as e:
@@ -53,17 +56,20 @@ class FaultCodeEncoder:
             self.device = device
             try:
                 self.model = SentenceTransformer(model_name, device=device)
+                torch.manual_seed(42)
                 self.projection = torch.nn.Linear(4096, projection_dim).to(device)
                 logger.info(f"Loaded fault code encoder: {model_name} on CPU (after CUDA OOM)")
             except Exception as e2:
                 logger.warning(f"Failed to load {model_name} on CPU, falling back to all-MiniLM-L6-v2: {e2}")
                 # Fallback to smaller model
                 self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=device)
+                torch.manual_seed(42)
                 self.projection = torch.nn.Linear(384, projection_dim).to(device)
         except Exception as e:
             logger.warning(f"Failed to load {model_name}, falling back to all-MiniLM-L6-v2: {e}")
             # Fallback to smaller model
             self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=device)
+            torch.manual_seed(42)
             self.projection = torch.nn.Linear(384, projection_dim).to(device)
     
     def encode(

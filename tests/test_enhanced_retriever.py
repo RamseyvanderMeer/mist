@@ -21,11 +21,11 @@ def mock_config():
     """Create a temporary config file for testing."""
     config = {
         "vector_store": {
-            "provider": "qdrant",
+            "provider": "chromadb",
             "collection_name": "test_collection",
+            "database": "mist",
             "distance_metric": "cosine",
-            "vector_size": 768,
-            "url": "http://localhost:6333"
+            "vector_size": 1024
         },
         "retrieval": {
             "initial_k": 100,
@@ -332,7 +332,7 @@ def test_stage3_kg_scoring_disabled(mock_config, mock_components):
     
     # Create config with KG disabled
     config = {
-        "vector_store": {"provider": "qdrant", "collection_name": "test", "vector_size": 768, "url": "http://localhost:6333"},
+        "vector_store": {"provider": "chromadb", "collection_name": "test", "database": "mist", "vector_size": 1024},
         "retrieval": {"initial_k": 100, "rerank_k": 50, "final_k": 10},
         "reranking": {"enabled": True, "provider": "local", "model": "test", "top_k": 50},
         "ranking": {"embedding_similarity": 0.4, "rerank_score": 0.3, "kg_path_score": 0.2, "feedback_score": 0.1},

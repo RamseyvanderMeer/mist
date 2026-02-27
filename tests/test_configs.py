@@ -124,14 +124,13 @@ class TestRetrievalConfig:
         assert "vector_store" in config
         vs = config["vector_store"]
         
-        required_keys = ["provider", "collection_name", "distance_metric", 
-                        "vector_size", "url"]
+        required_keys = ["provider", "collection_name", "distance_metric", "vector_size", "database"]
         missing = validate_required_keys(vs, required_keys)
         assert len(missing) == 0, f"Missing keys: {missing}"
         
-        assert vs["provider"] == "qdrant"
+        assert vs["provider"] == "chromadb"
         assert vs["distance_metric"] == "cosine"
-        assert vs["vector_size"] == 768
+        assert vs["vector_size"] == 1024
     
     def test_retrieval_section(self, config):
         """Test retrieval section."""

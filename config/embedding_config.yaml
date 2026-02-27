@@ -3,10 +3,10 @@
 
 models:
   # Fault code encoder configuration
-  # Uses E5-Mistral-7B-Instruct model with projection to 768 dimensions
+  # Uses E5-Mistral-7B-Instruct model with projection to 1024 dimensions
   fault_code:
     model_name: intfloat/e5-mistral-7b-instruct  # HuggingFace model identifier
-    projection_dim: 768  # Output embedding dimension
+    projection_dim: 1024  # Output embedding dimension
     max_length: 512  # Maximum token length for input text
     device: auto  # auto, cpu, cuda - device selection for model inference
   

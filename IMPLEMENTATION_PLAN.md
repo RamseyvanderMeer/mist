@@ -73,7 +73,7 @@ The enhanced mapping layer will:
 ┌─────────────────────────────────────────────────────────────────┐
 │              Multi-Stage Retrieval Pipeline                      │
 │  ┌──────────────────────────────────────────────────────────┐    │
-│  │ Stage 1: Vector Search (Qdrant)                          │    │
+│  │ Stage 1: Vector Search (ChromaDB)                       │    │
 │  │   - Initial retrieval: Top-K=100                         │    │
 │  │   - Cosine similarity                                    │    │
 │  └──────────────────────┬───────────────────────────────────┘    │
@@ -172,7 +172,7 @@ The enhanced mapping layer will:
 
 #### 2.2.2 Retrieval Pipeline
 
-**Vector Store (Qdrant):**
+**Vector Store (ChromaDB):**
 - **Collection**: `repair_guides_enhanced`
 - **Vector Size**: 768
 - **Distance Metric**: Cosine similarity
@@ -305,7 +305,7 @@ mist/
 │   │   ├── multimodal_encoder.py      # Cross-attention fusion
 │   │   └── embedding_trainer.py       # Fine-tuning pipeline
 │   ├── retrieval/
-│   │   ├── vector_store.py           # Qdrant interface
+│   │   ├── vector_store.py           # ChromaDB interface
 │   │   ├── reranker.py                # Re-ranking module
 │   │   ├── ranker.py                  # Combined scoring
 │   │   ├── conversational_rag.py      # Main orchestrator
@@ -342,7 +342,7 @@ mist/
 ├── data/
 │   ├── databases/                      # BMW diagnostic databases
 │   ├── knowledge_graph.graphml         # NetworkX graph file
-│   ├── vector_store/                   # Qdrant data
+│   ├── vector_store/                   # ChromaDB data (or cloud)
 │   ├── feedback/                       # Feedback database
 │   └── embeddings/                     # Checkpoints
 ├── tests/
@@ -538,7 +538,7 @@ class EnhancedRetriever:
 **Goals:**
 - Set up project structure
 - Implement basic embedding encoders
-- Set up vector store (Qdrant)
+- Set up vector store (ChromaDB)
 - Create database integration layer
 
 **Tasks:**
@@ -547,7 +547,7 @@ class EnhancedRetriever:
 3. Implement `FaultCodeEncoder` with E5-Mistral
 4. Implement `OBDDataEncoder` with structured neural network
 5. Implement `MultiModalEncoder` with cross-attention
-6. Set up Qdrant vector store
+6. Set up ChromaDB vector store
 7. Create database connection layer for BMW ISTA databases
 8. Write unit tests for encoders
 
@@ -988,7 +988,7 @@ training:
 ```yaml
 # config/retrieval_config.yaml
 vector_store:
-  provider: qdrant
+  provider: chromadb
   collection_name: repair_guides_enhanced
   distance_metric: cosine
   vector_size: 768
@@ -1154,7 +1154,7 @@ prompts:
 ### 11.1 Production Setup
 
 **Infrastructure:**
-- Qdrant server (not local file storage)
+- ChromaDB Cloud (or self-hosted)
 - GPU for embedding generation (optional but recommended)
 - Sufficient RAM for model loading
 - Fast storage for vector store
@@ -1168,7 +1168,7 @@ prompts:
 
 **Scaling:**
 - Horizontal scaling for API server
-- Qdrant cluster for vector store
+- ChromaDB for vector store
 - Load balancing for multiple instances
 
 ### 11.2 Security

@@ -3,7 +3,7 @@
 Index repair guides from BMW ISTA database into vector store.
 
 This script loads repair procedures from the ISTA database, encodes their content,
-and stores embeddings in the Qdrant vector store for semantic search.
+and stores embeddings in the ChromaDB vector store for semantic search.
 """
 import sys
 import argparse
@@ -18,6 +18,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from database.ista_db import IstaDatabase
+from database.xml_content import XmlContentFetcher
 from embeddings.fault_code_encoder import FaultCodeEncoder
 from retrieval.vector_store import VectorStore
 from paths import get_paths
@@ -64,6 +65,7 @@ class RepairGuideIndexer:
         # Initialize components
         logger.info("Initializing components...")
         self.ista_db = IstaDatabase()
+        self.xml_fetcher = XmlContentFetcher()
         self.encoder = self._init_encoder()
         self.vector_store = VectorStore(retrieval_config["vector_store"])
         
@@ -80,6 +82,10 @@ class RepairGuideIndexer:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         self.shutdown_requested = False
+
+        # Chunking: ~1200 chars ≈ 300 tokens (encoder max 512)
+        self.chunk_chars = 1200
+        self.chunk_overlap = 200
     
     def _init_encoder(self) -> FaultCodeEncoder:
         """Initialize fault code encoder from config."""
@@ -183,77 +189,84 @@ class RepairGuideIndexer:
     
     def _get_procedure_text(self, procedure: Dict[str, Any]) -> str:
         """
-        Get combined text content for a procedure.
+        Get full text content for a procedure (title + xml content).
+        
+        Fetches from xmlvalueprimitive via FTS when available; otherwise title only.
         
         Args:
             procedure: Procedure dictionary with id, title_engb, name
         
         Returns:
-            Combined text string (title + segments)
+            Combined text string (title + full content)
         """
-        procedure_id = procedure["id"]
-        title = procedure.get("title_engb") or procedure.get("name", "")
+        procedure_id = str(procedure["id"])
+        title = procedure.get("title_engb") or procedure.get("name", "") or ""
         
-        # Get segments
-        segments = self.ista_db.get_info_segments(procedure_id)
-        
-        # Combine title and segment content
         text_parts = [title] if title else []
         
-        for segment in segments:
-            # Try to get content from various possible fields
-            content = (
-                segment.get("CONTENT_ENGB") or
-                segment.get("CONTENT") or
-                segment.get("TEXT") or
-                ""
-            )
-            if content:
-                text_parts.append(str(content))
+        # Fetch full content from xmlvalueprimitive (FTS search by title)
+        xml_content = self.xml_fetcher.get_content(procedure_id, title)
+        if xml_content:
+            text_parts.append(xml_content)
         
         return "\n\n".join(text_parts)
     
-    def _process_procedure(self, procedure: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _chunk_text(self, text: str) -> List[str]:
+        """Split long text into overlapping chunks for embedding."""
+        if len(text) <= self.chunk_chars:
+            return [text]
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = start + self.chunk_chars
+            chunk = text[start:end]
+            chunks.append(chunk)
+            start = end - self.chunk_overlap
+            if start >= len(text):
+                break
+        return chunks
+
+    def _process_procedure(self, procedure: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         """
-        Process a single procedure: encode and prepare for storage.
+        Process a single procedure: get content, chunk if needed, prepare documents.
         
         Args:
             procedure: Procedure dictionary
         
         Returns:
-            Document dict ready for vector store, or None if error
+            List of document dicts (one per chunk) or None if error
         """
-        procedure_id = procedure["id"]
+        procedure_id = str(procedure["id"])
         
         try:
-            # Get procedure text
             text_content = self._get_procedure_text(procedure)
             if not text_content.strip():
                 logger.warning(f"Procedure {procedure_id} has no content. Skipping.")
                 return None
             
-            # Get fault codes
             fault_codes = self.ista_db.get_fault_codes_for_procedure(procedure_id)
-            
-            # Prepare document
             title = procedure.get("title_engb") or procedure.get("name", "")
             name = procedure.get("name", "")
             
-            document = {
-                "id": procedure_id,
-                "text": text_content,
-                "title": title,
-                "procedure_id": procedure_id,
-                "procedure_name": name,
-                "fault_codes": fault_codes,
-                "ecu_category": "",  # Can be extracted if available
-                "metadata": {
-                    "segment_count": len(self.ista_db.get_info_segments(procedure_id)),
-                    "indexed_at": datetime.now().isoformat()
-                }
-            }
-            
-            return document
+            chunks = self._chunk_text(text_content)
+            documents = []
+            for i, chunk_text in enumerate(chunks):
+                doc_id = f"{procedure_id}_chunk_{i}" if len(chunks) > 1 else procedure_id
+                documents.append({
+                    "id": doc_id,
+                    "text": chunk_text,
+                    "title": title,
+                    "procedure_id": procedure_id,
+                    "procedure_name": name,
+                    "fault_codes": fault_codes,
+                    "ecu_category": "",
+                    "metadata": {
+                        "chunk_index": i,
+                        "chunk_total": len(chunks),
+                        "indexed_at": datetime.now().isoformat(),
+                    }
+                })
+            return documents
             
         except Exception as e:
             logger.error(f"Error processing procedure {procedure_id}: {e}", exc_info=True)
@@ -292,9 +305,9 @@ class RepairGuideIndexer:
         try:
             self.vector_store.add(embeddings, documents, batch_size=self.batch_size)
             
-            # Track indexed IDs
+            # Track indexed procedure IDs (for resume; chunks share procedure_id)
             for doc in documents:
-                self.indexed_ids.add(doc["id"])
+                self.indexed_ids.add(doc.get("procedure_id", doc["id"]))
             
             logger.debug(f"Stored batch of {len(documents)} documents")
         except Exception as e:
@@ -344,15 +357,15 @@ class RepairGuideIndexer:
                 break
             
             try:
-                # Process procedure
-                document = self._process_procedure(procedure)
+                documents = self._process_procedure(procedure)
                 
-                if document is None:
+                if documents is None:
                     self.error_count += 1
                     self.processed_count += 1
                     continue
                 
-                batch_documents.append(document)
+                for doc in documents:
+                    batch_documents.append(doc)
                 self.processed_count += 1
                 
                 # Process batch when full
@@ -424,8 +437,8 @@ class RepairGuideIndexer:
     
     def close(self):
         """Close database connections."""
-        if hasattr(self, 'ista_db'):
-            self.ista_db.close()
+        if hasattr(self, "xml_fetcher"):
+            self.xml_fetcher.close()
 
 
 def main():

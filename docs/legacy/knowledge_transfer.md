@@ -75,7 +75,7 @@ The challenge is creating a unified representation that captures semantic relati
        ▼                      ▼                      ▼
 ┌──────────────┐    ┌──────────────────┐    ┌──────────────────┐
 │ Multi-Modal  │    │   Vector Store   │    │  Knowledge Graph │
-│   Encoder    │    │    (Qdrant)      │    │   (NetworkX)     │
+│   Encoder    │    │    (ChromaDB)      │    │   (NetworkX)     │
 │              │    │                  │    │                  │
 │ FaultCode +  │───▶│ Repair Guides    │    │ Fault→ECU→      │
 │ OBD Data     │    │ Embeddings       │    │ Diagnostic→      │
@@ -124,7 +124,7 @@ User Input (Fault Codes + OBD Data)
 [Fusion Layer] → 768-dim unified embedding
     │
     ▼
-[Vector Store Search] (Qdrant, top-K=50)
+[Vector Store Search] (ChromaDB, top-K=50)
     │
     ▼
 [Re-ranking] (Cross-encoder, optional)
@@ -245,7 +245,7 @@ Updated Embeddings → Improved Retrieval
 - `KnowledgeGraphBuilder` → SQLite database → NetworkX graph
 
 **External Dependencies:**
-- Qdrant (vector database)
+- ChromaDB (vector database)
 - SQLite (BMW diagnostic databases, feedback storage)
 - OpenAI/Anthropic APIs (LLM providers)
 - NetworkX (knowledge graph)
@@ -420,14 +420,14 @@ models:
 
 ### 3.2 Vector Store
 
-#### 3.2.1 Provider: Qdrant
+#### 3.2.1 Provider: ChromaDB
 
 **Location:** `src/retrieval/vector_store.py`
 
 **Technical Approach:**
-- Uses Qdrant client library
+- Uses ChromaDB client library
 - Local file-based storage (development)
-- Can be upgraded to Qdrant server for production
+- Can be upgraded to ChromaDB server for production
 
 **Collection Configuration:**
 - Collection name: `repair_guides` (configurable)
@@ -456,7 +456,7 @@ models:
 **Configuration:**
 ```yaml
 vector_store:
-  provider: qdrant
+  provider: chromadb
   collection_name: repair_guides
   distance_metric: cosine
   vector_size: 768
@@ -1349,7 +1349,7 @@ mist/
 │   ├── embeddings/      # Embedding checkpoints
 │   ├── feedback/        # Feedback database
 │   ├── knowledge_graph.graphml
-│   └── vector_store/    # Qdrant data
+│   └── vector_store/    # ChromaDB data
 ├── scripts/             # Utility scripts
 ├── src/                 # Source code
 │   ├── api/             # FastAPI server
@@ -1444,7 +1444,7 @@ db_path = paths.data.databases.diagnostic_db
 - `sentence-transformers>=2.2.0`
 - `torch>=2.0.0`
 - `transformers>=4.30.0`
-- `qdrant-client>=1.7.0`
+- `chromadb>=0.4.0`
 
 **LLM Providers:**
 - `openai>=1.0.0`
@@ -1615,7 +1615,7 @@ See Section 3.9.2 for detailed schemas.
 
 ### 5.4 Vector Store Document Format
 
-**Payload Structure (Qdrant):**
+**Payload Structure (ChromaDB):**
 ```python
 {
     'text': str,  # Procedure content
@@ -1749,7 +1749,7 @@ fine_tuning:
 **Structure:**
 ```yaml
 vector_store:
-  provider: qdrant
+  provider: chromadb
   collection_name: repair_guides
   distance_metric: cosine
   vector_size: 768
@@ -1886,7 +1886,7 @@ class VectorStore:
 - `MultiModalEncoder.encode(fault_codes, obd_data) → 768-dim tensor`
 
 **Embedding → Vector Store:**
-- Tensor → NumPy array → Qdrant vector
+- Tensor → NumPy array → ChromaDB vector
 
 **Search Results → Rankings:**
 - Vector store results → Ranker → Combined scores
@@ -1903,14 +1903,14 @@ class VectorStore:
 
 **Databases:**
 - SQLite (BMW diagnostic databases, feedback storage)
-- Qdrant (vector database)
+- ChromaDB (vector database)
 
 **Libraries:**
 - PyTorch (neural networks, training)
 - sentence-transformers (text embeddings)
 - NetworkX (knowledge graph)
 - FastAPI (API server)
-- Qdrant Client (vector database)
+- ChromaDB Client (vector database)
 
 ---
 
@@ -2046,7 +2046,7 @@ python scripts/build_knowledge_graph.py
 2. Query repair procedures with content
 3. Extract fault codes associated with each procedure
 4. Encode procedures using `MultiModalEncoder`
-5. Add to Qdrant vector store
+5. Add to ChromaDB vector store
 
 **Usage:**
 ```bash
@@ -2054,7 +2054,7 @@ python scripts/index_repair_guides.py
 ```
 
 **Output:**
-- Documents indexed in Qdrant collection `repair_guides`
+- Documents indexed in ChromaDB collection `repair_guides`
 - Statistics printed to console
 
 **Batch Processing:**
@@ -2128,7 +2128,7 @@ python scripts/train_embeddings.py
 - Use `uvicorn` with production settings
 - Configure CORS properly
 - Set up logging
-- Use Qdrant server instead of local file storage
+- Use ChromaDB server instead of local file storage
 
 ---
 
@@ -2146,7 +2146,7 @@ python scripts/train_embeddings.py
 - Install dependencies: `pip install -r requirements.txt`
 
 **External Services:**
-- Qdrant (local file-based or server)
+- ChromaDB (local file-based or server)
 - LLM API access (OpenAI/Anthropic) or local Ollama
 
 ### 10.2 Initialization Sequence
@@ -2194,7 +2194,7 @@ python scripts/train_embeddings.py
 - Add authentication/authorization
 
 **Vector Store:**
-- Use Qdrant server instead of local file storage
+- Use ChromaDB server instead of local file storage
 - Configure replication and backups
 - Monitor disk usage
 
@@ -2217,7 +2217,7 @@ python scripts/train_embeddings.py
 - Monitor training progress
 
 **Scaling:**
-- Vector store can be scaled horizontally (Qdrant cluster)
+- Vector store can be scaled horizontally (ChromaDB cluster)
 - API server can be scaled with load balancer
 - Consider caching frequently accessed embeddings
 - Batch processing for indexing/training
@@ -2268,7 +2268,7 @@ python scripts/train_embeddings.py
 - `data/databases/bmw_diagnostic_ml_ready.sqlite`
 - `data/knowledge_graph.graphml`
 - `data/feedback/feedback.db`
-- `data/vector_store/` (Qdrant data)
+- `data/vector_store/` (ChromaDB data)
 - `data/embeddings/checkpoints/` (training checkpoints)
 
 **Source Code:**

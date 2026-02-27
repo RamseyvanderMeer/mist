@@ -4,7 +4,7 @@ Extract valid repair guide titles from MIST database and vector store.
 
 This script extracts all repair guide titles from:
 1. BMW ISTA database (XEP_INFOOBJECTS table)
-2. Vector store (Qdrant collection)
+2. Vector store (ChromaDB collection)
 3. Outputs a list of valid titles for web scraping agents to use for matching
 
 The output can be used by scraping agents to match scraped content against
@@ -690,24 +690,18 @@ Description:"""
             # Initialize vector store
             vector_store = VectorStore(retrieval_config.get("vector_store", {}))
             
-            # Get all points from collection
-            # Note: Qdrant doesn't have a direct "get all" method, so we use scroll
+            # Get all points from collection via scroll
             try:
-                from qdrant_client.models import Filter, ScrollRequest
-                
-                # Scroll through all points
                 offset = None
                 batch_size = 1000
                 total_scrolled = 0
-                
+
                 while True:
-                    # Scroll request
-                    scroll_result = vector_store.client.scroll(
-                        collection_name=vector_store.collection_name,
+                    scroll_result = vector_store.scroll(
                         limit=batch_size,
                         offset=offset,
                         with_payload=True,
-                        with_vectors=False  # Don't need vectors, just metadata
+                        with_vectors=False,
                     )
                     
                     points = scroll_result[0]  # Points

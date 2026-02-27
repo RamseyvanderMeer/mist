@@ -19,7 +19,7 @@ The MIST (Multi-modal Intelligent Service Technician) AI mapping layer has been 
 - Output dimension: 768 (standardized)
 
 ### 3. Vector Store ✅
-- **VectorStore**: Qdrant-based vector database interface
+- **VectorStore**: ChromaDB-based vector database interface
 - Support for document indexing and similarity search
 - Batch operations and incremental updates
 - Metadata filtering capabilities
@@ -167,6 +167,6 @@ Edit configuration files in `config/`:
 ## Notes
 
 - The system is designed to work with the existing BMW diagnostic databases
-- Vector store uses local file-based Qdrant (can be upgraded to server)
+- Vector store uses ChromaDB Cloud
 - Knowledge graph is built from existing database relationships
 - All components are modular and can be extended independently

@@ -39,11 +39,11 @@ class TestRepairGuideIndexer:
         """Fixture for retrieval configuration."""
         return {
             "vector_store": {
-                "provider": "qdrant",
+                "provider": "chromadb",
                 "collection_name": "test_repair_guides",
+                "database": "mist",
                 "distance_metric": "cosine",
-                "vector_size": 768,
-                "url": "http://localhost:6333"
+                "vector_size": 1024
             }
         }
     
@@ -263,6 +263,7 @@ class TestRepairGuideIndexer:
         assert procedures[0]["id"] == "proc1"
         assert procedures[1]["id"] == "proc2"
     
+    @patch('index_repair_guides.XmlContentFetcher')
     @patch('index_repair_guides.IstaDatabase')
     @patch('index_repair_guides.FaultCodeEncoder')
     @patch('index_repair_guides.VectorStore')
@@ -271,31 +272,33 @@ class TestRepairGuideIndexer:
         mock_vector_store_class,
         mock_encoder_class,
         mock_ista_db_class,
+        mock_xml_fetcher_class,
         embedding_config,
         retrieval_config,
         sample_procedures,
-        sample_segments
     ):
-        """Test getting procedure text from segments."""
-        mock_db = Mock()
-        mock_db.get_info_segments = Mock(return_value=sample_segments)
-        
-        mock_ista_db_class.return_value = mock_db
+        """Test getting procedure text (title + xml content)."""
+        mock_xml = Mock()
+        mock_xml.get_content = Mock(return_value="Step 1: Drain engine oil. Step 2: Replace oil filter.")
+        mock_xml_fetcher_class.return_value = mock_xml
+
+        mock_ista_db_class.return_value = Mock()
         mock_encoder_class.return_value = Mock()
         mock_vector_store_class.return_value = Mock()
-        
+
         indexer = RepairGuideIndexer(
             embedding_config=embedding_config,
             retrieval_config=retrieval_config
         )
-        
+
         procedure = sample_procedures[0]
         text = indexer._get_procedure_text(procedure)
-        
+
         assert "Engine Oil Change" in text
         assert "Step 1: Drain engine oil" in text
         assert "Step 2: Replace oil filter" in text
     
+    @patch('index_repair_guides.XmlContentFetcher')
     @patch('index_repair_guides.IstaDatabase')
     @patch('index_repair_guides.FaultCodeEncoder')
     @patch('index_repair_guides.VectorStore')
@@ -304,36 +307,40 @@ class TestRepairGuideIndexer:
         mock_vector_store_class,
         mock_encoder_class,
         mock_ista_db_class,
+        mock_xml_fetcher_class,
         embedding_config,
         retrieval_config,
         sample_procedures,
-        sample_segments
     ):
         """Test processing a single procedure."""
+        mock_xml = Mock()
+        mock_xml.get_content = Mock(return_value="Step 1: Drain engine oil. Step 2: Replace oil filter.")
+        mock_xml_fetcher_class.return_value = mock_xml
+
         mock_db = Mock()
-        mock_db.get_info_segments = Mock(return_value=sample_segments)
         mock_db.get_fault_codes_for_procedure = Mock(return_value=["P0301", "P0302"])
-        
         mock_ista_db_class.return_value = mock_db
         mock_encoder_class.return_value = Mock()
         mock_vector_store_class.return_value = Mock()
-        
+
         indexer = RepairGuideIndexer(
             embedding_config=embedding_config,
             retrieval_config=retrieval_config
         )
-        
+
         procedure = sample_procedures[0]
-        document = indexer._process_procedure(procedure)
-        
-        assert document is not None
-        assert document["id"] == "proc1"
-        assert document["procedure_id"] == "proc1"
-        assert document["title"] == "Engine Oil Change"
-        assert document["fault_codes"] == ["P0301", "P0302"]
-        assert "text" in document
-        assert "metadata" in document
+        documents = indexer._process_procedure(procedure)
+
+        assert documents is not None
+        assert len(documents) >= 1
+        doc = documents[0]
+        assert doc["procedure_id"] == "proc1"
+        assert doc["title"] == "Engine Oil Change"
+        assert doc["fault_codes"] == ["P0301", "P0302"]
+        assert "text" in doc
+        assert "metadata" in doc
     
+    @patch('index_repair_guides.XmlContentFetcher')
     @patch('index_repair_guides.IstaDatabase')
     @patch('index_repair_guides.FaultCodeEncoder')
     @patch('index_repair_guides.VectorStore')
@@ -342,27 +349,30 @@ class TestRepairGuideIndexer:
         mock_vector_store_class,
         mock_encoder_class,
         mock_ista_db_class,
+        mock_xml_fetcher_class,
         embedding_config,
         retrieval_config
     ):
         """Test processing procedure with no content."""
+        mock_xml = Mock()
+        mock_xml.get_content = Mock(return_value=None)
+        mock_xml_fetcher_class.return_value = mock_xml
+
         mock_db = Mock()
-        mock_db.get_info_segments = Mock(return_value=[])
         mock_db.get_fault_codes_for_procedure = Mock(return_value=[])
-        
         mock_ista_db_class.return_value = mock_db
         mock_encoder_class.return_value = Mock()
         mock_vector_store_class.return_value = Mock()
-        
+
         indexer = RepairGuideIndexer(
             embedding_config=embedding_config,
             retrieval_config=retrieval_config
         )
-        
+
         procedure = {"id": "proc1", "title_engb": "", "name": ""}
-        document = indexer._process_procedure(procedure)
-        
-        assert document is None
+        documents = indexer._process_procedure(procedure)
+
+        assert documents is None
     
     @patch('index_repair_guides.IstaDatabase')
     @patch('index_repair_guides.FaultCodeEncoder')
@@ -581,6 +591,7 @@ class TestRepairGuideIndexer:
         assert stats["processed"] >= 2
         assert stats["errors"] >= 1
     
+    @patch('index_repair_guides.XmlContentFetcher')
     @patch('index_repair_guides.IstaDatabase')
     @patch('index_repair_guides.FaultCodeEncoder')
     @patch('index_repair_guides.VectorStore')
@@ -589,30 +600,32 @@ class TestRepairGuideIndexer:
         mock_vector_store_class,
         mock_encoder_class,
         mock_ista_db_class,
+        mock_xml_fetcher_class,
         embedding_config,
         retrieval_config
     ):
         """Test that get_fault_codes_for_procedure is called correctly."""
+        mock_xml = Mock()
+        mock_xml.get_content = Mock(return_value="Test content")
+        mock_xml_fetcher_class.return_value = mock_xml
+
         mock_db = Mock()
         mock_db.get_fault_codes_for_procedure = Mock(return_value=["P0301", "P0302"])
-        mock_db.get_info_segments = Mock(return_value=[
-            {"CONTENT_ENGB": "Test content"}
-        ])
-        
         mock_ista_db_class.return_value = mock_db
         mock_encoder_class.return_value = Mock()
         mock_vector_store_class.return_value = Mock()
-        
+
         indexer = RepairGuideIndexer(
             embedding_config=embedding_config,
             retrieval_config=retrieval_config
         )
-        
+
         procedure = {"id": "proc1", "title_engb": "Test", "name": "Test"}
-        document = indexer._process_procedure(procedure)
-        
+        documents = indexer._process_procedure(procedure)
+
         mock_db.get_fault_codes_for_procedure.assert_called_once_with("proc1")
-        assert document["fault_codes"] == ["P0301", "P0302"]
+        assert documents is not None
+        assert documents[0]["fault_codes"] == ["P0301", "P0302"]
 
 
 class TestIndexerCLI:

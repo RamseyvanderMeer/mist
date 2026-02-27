@@ -20,7 +20,7 @@ Recommendations (with optional clarification)
 - **MultiModalEncoder**: Cross-attention fusion combining both modalities
 
 ### 2. Retrieval Pipeline
-- **VectorStore**: Qdrant-based vector database for repair guide embeddings
+- **VectorStore**: ChromaDB-based vector database for repair guide embeddings
 - **Reranker**: Cross-encoder or Cohere API for fine-grained relevance scoring
 - **Ranker**: Combines multiple signals (embedding, KG, feedback, recency)
 

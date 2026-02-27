@@ -120,7 +120,7 @@
 1. **Script `scripts/index_scraped_repairs.py`**
    - Query `scraped_records` with filters (e.g. `outcome = 'success'`, `confidence_score >= 0.8`).
    - Encode `repair_summary` (and optionally `fault_codes` + `vehicle_context`) as document text.
-   - Upsert into Qdrant with metadata: `source_url`, `fault_codes`, `outcome`, `record_type`.
+   - Upsert into ChromaDB with metadata: `source_url`, `fault_codes`, `outcome`, `record_type`.
 
 2. **Collection strategy**
    - Option A: Same collection as ISTA guides, with `source: "scraped"` in payload.
