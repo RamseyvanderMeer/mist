@@ -36,6 +36,7 @@ MIST combines:
    ```bash
    pip install --upgrade pip
    pip install -r requirements.txt
+   pip install -e .  # Editable install: makes src and scrapers importable without PYTHONPATH
    ```
 
 4. **Set up environment variables**

@@ -12,6 +12,7 @@
 | BMW ISTA database | [DATABASE.md](DATABASE.md), [ISTA_DATABASE_GUIDE.md](ISTA_DATABASE_GUIDE.md) |
 | Web scraping | [SCRAPER_ARCHITECTURE.md](SCRAPER_ARCHITECTURE.md), [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md) |
 | Training pipeline (scraped data) | [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md), [DATA_OPTIMIZATION_SUMMARY.md](DATA_OPTIMIZATION_SUMMARY.md) |
+| Project restructuring | [RESTRUCTURING_PROPOSAL.md](RESTRUCTURING_PROPOSAL.md) |
 
 ## docs/ Contents
 
@@ -25,6 +26,7 @@
 | [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md) | Agent prompt for collecting automotive diagnostic training data |
 | [DATA_OPTIMIZATION_SUMMARY.md](DATA_OPTIMIZATION_SUMMARY.md) | Data optimization quick start and next steps |
 | [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md) | Plan to use scraped (Neon) data for training |
+| [RESTRUCTURING_PROPOSAL.md](RESTRUCTURING_PROPOSAL.md) | Project structure analysis and restructuring recommendations |
 
 ## Other Locations
 

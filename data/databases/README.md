@@ -57,9 +57,9 @@ Environment variable `MIST_DATABASE_DIR` can override the default location.
 
 ## Migration
 
-Databases were migrated from `_databases/` directories. To re-run migration:
+MIST database schema is managed via migrations. To create or update the MIST database:
 ```bash
-python scripts/migrate_databases.py
+python scripts/run_migrations.py
 ```
 
 ## Notes

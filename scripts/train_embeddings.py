@@ -9,12 +9,13 @@ import sys
 import argparse
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add project root for consistent imports (from src.X)
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT))
 
-from embeddings.embedding_trainer import EmbeddingTrainer
-from embeddings.multimodal_encoder import MultiModalEncoder
-from paths import get_paths
+from src.embeddings.embedding_trainer import EmbeddingTrainer
+from src.embeddings.multimodal_encoder import MultiModalEncoder
+from src.paths import get_paths
 import yaml
 import logging
 import torch

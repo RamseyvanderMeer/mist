@@ -23,12 +23,13 @@ from typing import List, Dict, Set, Any, Optional
 import logging
 from collections import defaultdict
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add project root for consistent imports (from src.X)
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT))
 
-from database.ista_db import IstaDatabase
-from retrieval.vector_store import VectorStore
-from paths import get_paths
+from src.database.ista_db import IstaDatabase
+from src.retrieval.vector_store import VectorStore
+from src.paths import get_paths
 import yaml
 from dotenv import load_dotenv
 
@@ -186,7 +187,7 @@ class RepairGuideTitleExtractor:
             
             if provider == 'openai':
                 try:
-                    from llm.openai_client import OpenAIClient
+                    from src.llm.openai_client import OpenAIClient
                     config = llm_config.get('openai', {})
                     logger.info(f"  Model: {config.get('model', 'default')}")
                     client = OpenAIClient(config)
@@ -196,7 +197,7 @@ class RepairGuideTitleExtractor:
                     logger.error(f"✗ OpenAI client not available: {e}", exc_info=True)
             elif provider == 'anthropic':
                 try:
-                    from llm.anthropic_client import AnthropicClient
+                    from src.llm.anthropic_client import AnthropicClient
                     config = llm_config.get('anthropic', {})
                     logger.info(f"  Model: {config.get('model', 'default')}")
                     client = AnthropicClient(config)
@@ -206,7 +207,7 @@ class RepairGuideTitleExtractor:
                     logger.error(f"✗ Anthropic client not available: {e}", exc_info=True)
             elif provider == 'open_source':
                 try:
-                    from llm.open_source_client import OpenSourceClient
+                    from src.llm.open_source_client import OpenSourceClient
                     config = llm_config.get('open_source', {})
                     logger.info(f"  Model: {config.get('model', 'default')}")
                     client = OpenSourceClient(config)
@@ -216,7 +217,7 @@ class RepairGuideTitleExtractor:
                     logger.error(f"✗ Open source client not available: {e}", exc_info=True)
             elif provider == 'gemini':
                 try:
-                    from llm.gemini_client import GeminiClient
+                    from src.llm.gemini_client import GeminiClient
                     config = llm_config.get('gemini', {})
                     # Override model from environment variable if present
                     model = os.getenv('GEMINI_MODEL') or config.get('model', 'gemini-pro')

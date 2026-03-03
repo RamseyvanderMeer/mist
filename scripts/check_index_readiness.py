@@ -19,9 +19,9 @@ import os
 import sys
 from pathlib import Path
 
-# Add project root
+# Add project root for consistent imports (from src.X)
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
 
 try:
     from dotenv import load_dotenv
@@ -127,7 +127,7 @@ def check_chromadb(paths) -> tuple[bool, list[str]]:
         with open(paths.retrieval_config, "r") as f:
             rc = yaml.safe_load(f)
         vs_config = (rc or {}).get("vector_store", {})
-        from retrieval.vector_store import VectorStore
+        from src.retrieval.vector_store import VectorStore
         store = VectorStore(vs_config)
         # Quick operation to verify connection
         _ = store.get_collection_info()
@@ -142,7 +142,7 @@ def main() -> int:
     print("=" * 60)
 
     try:
-        from paths import get_paths
+        from src.paths import get_paths
         paths = get_paths()
     except Exception as e:
         print(f"FAIL: Could not load paths: {e}")

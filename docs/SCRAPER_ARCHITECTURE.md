@@ -18,27 +18,46 @@ This document outlines the architecture for the web scraping system that collect
 - ❌ Need integration with MIST data format
 - ✅ Hybrid approach: Use open-source libraries + custom scrapers
 
-## Architecture
+## Architecture (Current Layout)
+
+The scrapers live at **project root** as a top-level `scrapers/` package:
 
 ```
-scripts/
+mist/
 ├── scrapers/
 │   ├── __init__.py
-│   ├── base_scraper.py          # Base class with common functionality
-│   ├── forum_scraper.py          # Reddit, forums (Bimmerforums, etc.)
-│   ├── documentation_scraper.py # AutoZone, OBD-Codes.com, etc.
-│   ├── video_scraper.py          # YouTube, Vimeo
-│   ├── tsb_scraper.py            # NHTSA TSB database
-│   ├── obd_code_scraper.py       # OBD code databases
+│   ├── items.py                 # Scrapy item definitions (MistScrapedItem)
+│   ├── middlewares.py
+│   ├── settings.py              # Scrapy settings
+│   ├── agents/
+│   │   └── __init__.py
+│   ├── pipelines/
+│   │   ├── __init__.py
+│   │   ├── io.py
+│   │   ├── langgraph_pipeline.py
+│   │   ├── postgres.py           # Postgres pipeline for scraped records
+│   │   ├── validation.py
+│   │   └── ...
+│   ├── spiders/
+│   │   ├── __init__.py
+│   │   ├── base.py              # MistBaseSpider, merge_text
+│   │   ├── forum_spider.py       # Bimmerpost, forums
+│   │   ├── doc_spider.py        # OBD-Codes.com, AutoZone, etc.
+│   │   └── example_spider.py
 │   └── utils/
 │       ├── __init__.py
-│       ├── extractors.py         # Data extraction utilities
-│       ├── validators.py         # Data validation
-│       └── rate_limiter.py       # Rate limiting & robots.txt
+│       ├── constants.py         # Fault code patterns, OBD ranges
+│       ├── extractors.py        # Data extraction utilities
+│       └── forum_config.py
 │
-├── scrape_all.py                 # Main orchestrator script
-└── process_scraped_data.py       # Existing processor (already exists)
+├── scripts/
+│   ├── run_scraper.py           # Entry point: python scripts/run_scraper.py --spider forum|doc|example
+│   └── process_scraped_data.py  # Process raw JSONL into training format
+│
+└── scrapy.cfg                   # [settings] default = scrapers.settings
 ```
+
+**Run scrapers:** `python scripts/run_scraper.py --spider forum|doc|example`
 
 ## Technology Stack
 
@@ -164,21 +183,20 @@ scripts/
 ## Example Usage
 
 ```bash
-# Scrape all sources
-python scripts/scrape_all.py --output data/training/raw_data
+# Run forum spider (default)
+python scripts/run_scraper.py --spider forum
 
-# Scrape only forums
-python scripts/scrapers/forum_scraper.py --output data/training/raw_data/forums
+# Run doc spider (documentation sites)
+python scripts/run_scraper.py --spider doc
 
-# Scrape with specific configuration
-python scripts/scrape_all.py \
-    --sources forums,documentation \
-    --max-pages 1000 \
-    --rate-limit 2.0 \
-    --output data/training/raw_data
+# Run with limits
+python scripts/run_scraper.py --spider forum --limit-items 100 --limit-pages 10
 
-# Resume from checkpoint
-python scripts/scrape_all.py --resume data/training/raw_data/.checkpoint.json
+# Custom output directory
+python scripts/run_scraper.py --spider forum --output-dir data/training/raw_data
+
+# Process scraped data
+python scripts/process_scraped_data.py
 ```
 
 ## Dependencies to Add
