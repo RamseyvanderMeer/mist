@@ -316,11 +316,9 @@ mist/
 
 ## Documentation
 
-- [QUICK_START.md](QUICK_START.md): Quick reference guide
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md): Detailed implementation plan
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): Architecture overview
-- [docs/DATABASE.md](docs/DATABASE.md): Database documentation
-- [docs/API.md](docs/API.md): API documentation (to be created)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): Architecture and getting started
+- [docs/DATABASE.md](docs/DATABASE.md): BMW ISTA database overview
+- [docs/agent.md](docs/agent.md): Full documentation index for agents
 
 ## Configuration
 

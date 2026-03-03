@@ -1,72 +1,75 @@
-# MIST Architecture Overview
-
-## System Architecture
+# MIST Architecture
 
 MIST (Multi-modal Intelligent Service Technician) is an AI-powered automotive diagnostic system that maps fault codes and OBD live data to repair guide recommendations.
 
 ## High-Level Flow
 
 ```
-Fault Codes + OBD Data → Multi-Modal Encoding → Vector Search → 
-Re-ranking → Knowledge Graph Filtering → Combined Scoring → 
+Fault Codes + OBD Data → Multi-Modal Encoding → Vector Search (ChromaDB) →
+Re-ranking → Knowledge Graph Filtering → Combined Scoring →
 Recommendations (with optional clarification)
 ```
 
 ## Core Components
 
-### 1. Multi-Modal Embeddings
-- **FaultCodeEncoder**: Encodes fault code text using E5-Mistral-7B-Instruct
-- **OBDDataEncoder**: Encodes structured OBD sensor data
-- **MultiModalEncoder**: Cross-attention fusion combining both modalities
-
-### 2. Retrieval Pipeline
-- **VectorStore**: ChromaDB-based vector database for repair guide embeddings
-- **Reranker**: Cross-encoder or Cohere API for fine-grained relevance scoring
-- **Ranker**: Combines multiple signals (embedding, KG, feedback, recency)
-
-### 3. Knowledge Graph
-- **GraphBuilder**: Extracts relationships from BMW diagnostic database
-- **GraphQuery**: Path finding and relationship reasoning
-
-### 4. Conversational RAG
-- **ConversationalRAG**: Main orchestrator for multi-turn conversations
-- **QueryExpander**: Expands queries with user clarification responses
-- **LLM Providers**: OpenAI, Anthropic, or local Ollama
-
-### 5. Self-Improvement
-- **FeedbackCollector**: Stores user feedback and repair outcomes
-- **EmbeddingTrainer**: Fine-tunes embeddings using contrastive learning
-- **ActiveLearning**: Identifies uncertain cases for human review
-
-## Data Flow
-
-See [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) for detailed architecture diagrams and specifications.
+| Component | Implementation | Purpose |
+|-----------|----------------|---------|
+| **FaultCodeEncoder** | `src/embeddings/fault_code_encoder.py` | E5-Mistral-7B-Instruct, projects to 768/1024 dim |
+| **OBDDataEncoder** | `src/embeddings/obd_data_encoder.py` | Encodes OBD sensor JSON |
+| **MultiModalEncoder** | `src/embeddings/multimodal_encoder.py` | Cross-attention fusion |
+| **ChromaVectorStore** | `src/retrieval/chroma_store.py` | ChromaDB Cloud for repair guide embeddings |
+| **Reranker** | `src/retrieval/reranker.py` | Local cross-encoder or Cohere API |
+| **Ranker** | `src/retrieval/ranker.py` | Combines embedding, KG, feedback, recency |
+| **KnowledgeGraph** | `src/knowledge/` | NetworkX graph from BMW ISTA DB |
+| **ConversationalRAG** | `src/retrieval/conversational_rag.py` | Orchestrator, clarification, session management |
+| **LLM Providers** | `src/llm/` | OpenAI, Anthropic, Gemini, Ollama |
+| **FeedbackCollector** | `src/feedback/collector.py` | SQLite feedback storage |
+| **EmbeddingTrainer** | `src/learning/` | Contrastive fine-tuning from feedback |
 
 ## Configuration
 
-All configuration is YAML-based:
-- `config/embedding_config.yaml`: Embedding model settings
-- `config/retrieval_config.yaml`: Retrieval parameters
-- `config/llm_config.yaml`: LLM provider settings
-- `config/training_config.yaml`: Training hyperparameters
+YAML configs in `config/`:
+
+- `embedding_config.yaml` – Model settings, projection dim, fusion
+- `retrieval_config.yaml` – ChromaDB, retrieval params, ranking weights, clarification
+- `llm_config.yaml` – LLM provider and model selection
+- `training_config.yaml` – Fine-tuning hyperparameters
+
+## API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/query` | POST | Process fault codes + OBD data |
+| `/clarify` | POST | Provide clarification responses |
+| `/feedback/rating` | POST | Submit rating |
+| `/feedback/outcome` | POST | Submit repair outcome |
+| `/feedback/correction` | POST | Submit corrections |
+| `/feedback/statistics` | GET | Feedback stats |
+| `/health` | GET | Health check |
+
+## Getting Started
+
+```bash
+# Setup
+pip install -r requirements.txt
+python scripts/run_migrations.py
+
+# Build knowledge graph (requires DiagDocDb_Decrypted.sqlite)
+python scripts/build_knowledge_graph.py
+
+# Index repair guides (requires ChromaDB Cloud: CHROMA_DB_API_KEY, CHROMA_DB_TENANT)
+python scripts/index_repair_guides.py
+
+# Run API
+uvicorn src.api.server:app --host 0.0.0.0 --port 8000
+```
 
 ## Path Management
 
-Centralized path management via `src/paths.py`:
-- Auto-detects MIST root directory
-- Supports environment variable overrides
-- Provides fallback to old database locations
+`src/paths.py` provides `get_paths()` for database and data paths. Uses `data/databases/` by default; override with `ISTA_DB_PATH` or `MIST_DATABASE_DIR`.
 
-## API
+## Further Reading
 
-FastAPI server provides REST endpoints:
-- `POST /query`: Process fault codes and OBD data
-- `POST /clarify`: Provide clarification responses
-- `POST /feedback/*`: Submit feedback
-- `GET /feedback/statistics`: Get feedback stats
-
-## For More Details
-
-- [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md): Complete implementation specifications
-- [QUICK_START.md](../QUICK_START.md): Quick start guide
-- [API.md](API.md): API documentation (to be created)
+- [DATABASE.md](DATABASE.md) – BMW ISTA database overview
+- [ISTA_DATABASE_GUIDE.md](ISTA_DATABASE_GUIDE.md) – Document hierarchy, Process Analysis
+- [README.md](../README.md) – Setup and usage

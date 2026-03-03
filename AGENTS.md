@@ -2,6 +2,10 @@
 
 ## Cursor Cloud specific instructions
 
+### Documentation index
+
+For full project documentation, see [docs/agent.md](docs/agent.md). It indexes all .md files by topic (architecture, databases, scraping, training, etc.) for quick lookup.
+
 ### Project overview
 
 MIST (Multi-modal Intelligent Service Technician) is a Python 3.12 FastAPI application for AI-powered automotive diagnostics. See `README.md` for full details.
@@ -52,4 +56,4 @@ This creates/updates `data/databases/mist_data.db` (SQLite). Migrations are idem
 
 - The BMW ISTA diagnostic database (`data/databases/DiagDocDb_Decrypted.sqlite`) is a multi-GB file excluded from git. The `/query` endpoint depends on it for full diagnostic pipeline functionality. Feedback endpoints (`/feedback/*`) and `/health` work without it.
 - No `.env` file is committed; LLM API keys (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are only required for the `/query` and `/clarify` endpoints (LLM-based clarification). The feedback system and health check work without any API keys.
-- The project uses local file-based Qdrant (`data/vector_store/`) by default. No external Qdrant server is needed for development.
+- The project uses ChromaDB Cloud for the vector store. Set `CHROMA_DB_API_KEY` and `CHROMA_DB_TENANT` in `.env`.

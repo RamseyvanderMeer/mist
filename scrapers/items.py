@@ -1,7 +1,7 @@
 """
 Scrapy items for MIST training data collection.
 
-Data structure matches WEB_SCRAPING_PROMPT.md specifications.
+Data structure matches docs/WEB_SCRAPING_PROMPT.md specifications.
 """
 import scrapy
 

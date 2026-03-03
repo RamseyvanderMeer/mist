@@ -4,11 +4,11 @@
 
 This document summarizes the complete data optimization strategy for improving MIST's accuracy through web-scraped training data.
 
-## Documents Created
+## Documents & Scripts
 
-1. **WEB_SCRAPING_PROMPT.md** - Comprehensive prompt for web scraping agents to collect training data
-2. **DATA_OPTIMIZATION_PLAN.md** - Detailed implementation plan for using scraped data
-3. **scripts/process_scraped_data.py** - Data processing pipeline script
+1. **[WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md)** – Prompt for web scraping agents
+2. **scripts/process_scraped_data.py** – Data processing pipeline
+3. **[TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md)** – Plan to use scraped data (Neon) for training
 
 ## Quick Start
 
@@ -22,7 +22,7 @@ python scripts/extract_repair_guide_titles.py --format agent
 This creates `data/training/valid_repair_guide_titles.json` with all valid titles from the MIST database.
 
 ### Step 2: Collect Data
-Use the prompt in `WEB_SCRAPING_PROMPT.md` with a web scraping agent to collect automotive diagnostic data from:
+Use the prompt in [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md) with a web scraping agent to collect automotive diagnostic data from:
 - Forums (Reddit, Bimmerforums, etc.)
 - Documentation sites (OBD-Codes.com, AutoZone, etc.)
 - Video content (YouTube, etc.)
@@ -46,14 +46,12 @@ python scripts/process_scraped_data.py \
     data/scraped/processed_data/
 ```
 
-### Step 4: Follow Implementation Plan
-Execute the phases outlined in `DATA_OPTIMIZATION_PLAN.md`:
-1. **Week 1-2**: Data Processing & Integration
-2. **Week 2-3**: Training Data Preparation
-3. **Week 3-4**: Model Training Enhancements
-4. **Week 4-5**: Retrieval System Optimization
-5. **Week 5-6**: Evaluation & Validation
-6. **Week 6+**: Continuous Improvement
+### Step 4: Connect to Training
+
+See [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md) for:
+- Loading scraped data from Neon/Postgres
+- Extending EmbeddingTrainer for scraped pairs
+- Guide matching and linking to ISTA procedures
 
 ## Expected Improvements
 
@@ -98,18 +96,15 @@ Execute the phases outlined in `DATA_OPTIMIZATION_PLAN.md`:
 
 ## Next Steps
 
-1. **Immediate**: Start web scraping using `WEB_SCRAPING_PROMPT.md`
-2. **Week 1**: Process collected data using `process_scraped_data.py`
-3. **Week 2**: Begin implementing training enhancements
-4. **Week 3-6**: Follow implementation plan phases
-5. **Ongoing**: Monitor performance and iterate
+1. Start web scraping using [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md)
+2. Process data with `process_scraped_data.py`
+3. Implement training enhancements per [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md)
 
 ## Files Reference
 
 ### Documentation
-- `WEB_SCRAPING_PROMPT.md` - Web scraping instructions
-- `DATA_OPTIMIZATION_PLAN.md` - Implementation plan
-- `DATA_OPTIMIZATION_SUMMARY.md` - This file
+- [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md) – Web scraping instructions
+- [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md) – Training pipeline improvements
 
 ### Scripts
 - `scripts/extract_repair_guide_titles.py` - Extract valid titles for scraping agent matching
@@ -124,7 +119,5 @@ Execute the phases outlined in `DATA_OPTIMIZATION_PLAN.md`:
 
 ## Support
 
-For questions or issues:
-- Review `DATA_OPTIMIZATION_PLAN.md` for detailed specifications
-- Check `WEB_SCRAPING_PROMPT.md` for data collection guidelines
-- Review existing MIST documentation in `docs/`
+- [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md) – Data collection guidelines
+- [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md) – Training pipeline details

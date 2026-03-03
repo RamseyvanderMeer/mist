@@ -60,9 +60,7 @@ results = cursor.fetchall()
 
 ## Database Schema
 
-For detailed schema information, see:
-- [ISTA_DATABASE_GUIDE.md](ISTA_DATABASE_GUIDE.md)
-- [DATABASE_ACCESS_GUIDE.md](DATABASE_ACCESS_GUIDE.md)
+For document hierarchy and Process Analysis (preliminary tasks, Ref:h3 links), see [ISTA_DATABASE_GUIDE.md](ISTA_DATABASE_GUIDE.md).
 
 ## Integration with MIST
 
