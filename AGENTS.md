@@ -47,7 +47,8 @@ ruff check src/ --select E,F
 ### Database migrations
 
 ```bash
-PYTHONPATH=/workspace python scripts/run_migrations.py
+mist migrate
+# Or: PYTHONPATH=/workspace python scripts/run_migrations.py
 ```
 
 This creates/updates `data/databases/mist_data.db` (SQLite). Migrations are idempotent.

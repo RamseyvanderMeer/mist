@@ -13,6 +13,7 @@
 | Web scraping | [SCRAPER_ARCHITECTURE.md](SCRAPER_ARCHITECTURE.md), [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md) |
 | Training pipeline (scraped data) | [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md), [DATA_OPTIMIZATION_SUMMARY.md](DATA_OPTIMIZATION_SUMMARY.md) |
 | Project restructuring | [RESTRUCTURING_PROPOSAL.md](RESTRUCTURING_PROPOSAL.md) |
+| CLI usage | Use `mist migrate`, `mist train`, etc. after `pip install -e .` |
 
 ## docs/ Contents
 

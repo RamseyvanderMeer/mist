@@ -2,6 +2,21 @@
 
 Utility scripts for database migrations, indexing, scraping, training, and maintenance.
 
+**Preferred:** Use the unified `mist` CLI after `pip install -e .`:
+
+```bash
+mist migrate              # Run migrations
+mist readiness            # Check index readiness
+mist build-kg            # Build knowledge graph
+mist train               # Train embeddings
+mist scrape forum        # Run forum spider
+mist index               # Index repair guides
+mist extract-titles      # Extract repair guide titles
+mist --help              # See all commands
+```
+
+The scripts below are thin wrappers that call into `src.commands` or the `mist` CLI.
+
 ## Migrations
 
 | Script | Purpose |

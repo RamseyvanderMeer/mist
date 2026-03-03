@@ -36,7 +36,7 @@ MIST combines:
    ```bash
    pip install --upgrade pip
    pip install -r requirements.txt
-   pip install -e .  # Editable install: makes src and scrapers importable without PYTHONPATH
+   pip install -e .  # Editable install: enables `mist` CLI and importable packages
    ```
 
 4. **Set up environment variables**
@@ -58,12 +58,14 @@ MIST combines:
 
 5. **Run database migrations**
    ```bash
-   python scripts/run_migrations.py
+   mist migrate
+   # Or: python scripts/run_migrations.py
    ```
 
 6. **Build knowledge graph** (one-time setup)
    ```bash
-   python scripts/build_knowledge_graph.py
+   mist build-kg
+   # Or: python scripts/build_knowledge_graph.py
    ```
 
 7. **Configure ChromaDB Cloud** (required for vector store)
@@ -76,7 +78,8 @@ MIST combines:
 
 8. **Index repair guides** (one-time setup, may take a while)
    ```bash
-   python scripts/index_repair_guides.py
+   mist index
+   # Or: python scripts/index_repair_guides.py
    ```
 
 ## Training
@@ -89,21 +92,19 @@ Train embeddings using contrastive learning on collected feedback:
 
 ```bash
 # Basic training with default configs
-python scripts/train_embeddings.py
+mist train
 
 # With custom config files
-python scripts/train_embeddings.py \
-    --config config/training_config.yaml \
-    --embedding-config config/embedding_config.yaml
+mist train --config config/training_config.yaml --embedding-config config/embedding_config.yaml
 
 # Resume from checkpoint
-python scripts/train_embeddings.py --resume data/embeddings/checkpoints/checkpoint_epoch_5.pt
+mist train --resume data/embeddings/checkpoints/checkpoint_epoch_5.pt
 
 # Specify device (auto, cuda, or cpu)
-python scripts/train_embeddings.py --device cuda
+mist train --device cuda
 
 # Set logging level
-python scripts/train_embeddings.py --log-level DEBUG
+mist train --log-level DEBUG
 ```
 
 ### Training Configuration

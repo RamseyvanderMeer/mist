@@ -21,6 +21,9 @@ pydantic-settings>=2.0.0  # Required for ChromaDB Python 3.14 compatibility
 # Knowledge graph
 networkx>=3.0
 
+# CLI
+typer>=0.9.0
+
 # API
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
