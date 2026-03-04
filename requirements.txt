@@ -28,6 +28,10 @@ typer>=0.9.0
 playwright>=1.40.0  # also run: playwright install chromium
 requests>=2.28.0    # Capsolver API
 
+# LLM (OpenAI for matcher eval --use-llm; Gemini for /query, /clarify)
+openai>=1.0.0
+google-generativeai>=0.3.0
+
 # API
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0

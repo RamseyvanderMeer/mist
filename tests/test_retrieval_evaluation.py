@@ -6,9 +6,13 @@ and computes Hit@1, Hit@5, Hit@10, MRR. Optionally writes results to retrieved_r
 
 Requires: DATABASE_URL (postgresql), CHROMA_DB_*, ISTA DB, knowledge graph.
 
+NOTE: Uses E5-Mistral-7B + cross-encoder — slow on CPU (~1-3 min/record).
+Use RETRIEVAL_EVAL_SAMPLE_SIZE=2 for a quick 2-record test.
+
 Run:
   PYTHONPATH=. python -m pytest tests/test_retrieval_evaluation.py -v -s
-  PYTHONPATH=. python tests/test_retrieval_evaluation.py --sample-size 20 --persist
+  RETRIEVAL_EVAL_SAMPLE_SIZE=2 python -m pytest tests/test_retrieval_evaluation.py -v -s
+  PYTHONPATH=. python tests/test_retrieval_evaluation.py --sample-size 2 --persist
 """
 from __future__ import annotations
 
@@ -86,15 +90,22 @@ def _fetch_eval_records(
     return records[:sample_size]
 
 
+def _create_retriever():
+    """Create EnhancedRetriever once (model load is slow)."""
+    from src.retrieval.enhanced_retriever import EnhancedRetriever
+
+    return EnhancedRetriever()
+
+
 def _run_retrieval(
+    retriever: Any,
     fault_codes: List[str],
     description: Optional[str],
     top_k: int = 10,
 ) -> List[Dict[str, Any]]:
-    """Run EnhancedRetriever and return top-k results."""
-    from src.retrieval.enhanced_retriever import EnhancedRetriever, EnhancedRetrieverError
+    """Run retrieval using shared retriever instance."""
+    from src.retrieval.enhanced_retriever import EnhancedRetrieverError
 
-    retriever = EnhancedRetriever()
     try:
         results = retriever.retrieve(
             fault_codes=fault_codes,
@@ -223,7 +234,7 @@ def test_retrieval_evaluation_random_sample(db_url: Optional[str]):
     if not db_url:
         pytest.skip("DATABASE_URL not set")
 
-    sample_size = int(os.environ.get("RETRIEVAL_EVAL_SAMPLE_SIZE", "10"))
+    sample_size = int(os.environ.get("RETRIEVAL_EVAL_SAMPLE_SIZE", "2"))
     persist = os.environ.get("RETRIEVAL_EVAL_PERSIST", "").lower() in ("1", "true", "yes")
 
     records = _fetch_eval_records(db_url, sample_size=sample_size, seed=42)
@@ -233,7 +244,13 @@ def test_retrieval_evaluation_random_sample(db_url: Optional[str]):
     results: List[Dict[str, Any]] = []
     run_id = str(uuid.uuid4())[:8]
 
-    for rec in records:
+    print(f"Initializing retriever (E5-Mistral-7B + reranker)...", flush=True)
+    print("  First run may download models (~14GB) or take 2-5 min to load. Check GPU: python -c \"import torch; print('CUDA:', torch.cuda.is_available())\"", flush=True)
+    retriever = _create_retriever()
+
+    print(f"Evaluating {len(records)} records...", flush=True)
+
+    for i, rec in enumerate(records):
         fault_codes = rec.get("fault_codes") or []
         desc_parts = []
         if rec.get("repair_summary"):
@@ -242,7 +259,8 @@ def test_retrieval_evaluation_random_sample(db_url: Optional[str]):
             desc_parts.append(str(rec["symptoms"])[:200])
         description = " ".join(desc_parts).strip() or None
 
-        retrieved = _run_retrieval(fault_codes, description, top_k=10)
+        print(f"  [{i+1}/{len(records)}] Retrieving for {fault_codes[:3]}...", flush=True)
+        retrieved = _run_retrieval(retriever, fault_codes, description, top_k=10)
         metrics = _compute_metrics(rec["matched_guide_id"], retrieved)
 
         results.append({
@@ -287,8 +305,11 @@ def test_retrieval_evaluation_cli():
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Retrieval evaluation using scraped_records")
-    parser.add_argument("--sample-size", type=int, default=20, help="Number of records to sample")
+    parser = argparse.ArgumentParser(
+        description="Retrieval evaluation using scraped_records. "
+        "Uses E5-Mistral-7B — ~1-3 min/record on CPU. Use --sample-size 2 for quick test."
+    )
+    parser.add_argument("--sample-size", type=int, default=2, help="Number of records (default 2 for CPU)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--persist", action="store_true", help="Write results to retrieved_records table")
     args = parser.parse_args()
@@ -303,9 +324,12 @@ if __name__ == "__main__":
         print("No records with matched_guide_id found. Run match_repair_guides.py first.")
         exit(1)
 
+    print("Initializing retriever (E5-Mistral-7B + reranker, may take 2-5 min first run)...", flush=True)
+    retriever = _create_retriever()
+
     results = []
     run_id = str(uuid.uuid4())[:8]
-    for rec in records:
+    for i, rec in enumerate(records):
         fault_codes = rec.get("fault_codes") or []
         desc_parts = []
         if rec.get("repair_summary"):
@@ -313,7 +337,8 @@ if __name__ == "__main__":
         if rec.get("symptoms"):
             desc_parts.append(str(rec["symptoms"])[:200])
         description = " ".join(desc_parts).strip() or None
-        retrieved = _run_retrieval(fault_codes, description, top_k=10)
+        print(f"  [{i+1}/{len(records)}] Retrieving for {fault_codes[:3]}...", flush=True)
+        retrieved = _run_retrieval(retriever, fault_codes, description, top_k=10)
         metrics = _compute_metrics(rec["matched_guide_id"], retrieved)
         results.append({
             "scraped_record_id": rec.get("id"),

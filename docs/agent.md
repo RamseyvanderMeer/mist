@@ -15,6 +15,7 @@
 | Project restructuring | [RESTRUCTURING_PROPOSAL.md](RESTRUCTURING_PROPOSAL.md) |
 | CLI usage | Use `mist-cli migrate`, `mist-cli train`, etc. after `pip install -e .` |
 | Retrieval evaluation | `tests/test_retrieval_evaluation.py` — eval using scraped_records (matched_guide_id); requires DATABASE_URL, ChromaDB, ISTA |
+| Matcher accuracy | `tests/test_matcher_accuracy.py` — compare retrieved guides to solution (repair_summary/repair_guide); optional LLM eval via OPENAI_API_KEY + `--use-llm` or MATCHER_EVAL_USE_LLM=1 |
 
 ## docs/ Contents
 

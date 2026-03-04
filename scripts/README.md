@@ -95,6 +95,15 @@ python tests/test_retrieval_evaluation.py --sample-size 20 --persist
 
 Requires: `DATABASE_URL`, ChromaDB Cloud, ISTA DB, knowledge graph. Run `match_repair_guides.py` first to populate `matched_guide_id`. Optional: `run_retrieved_records_migration.py` to create `retrieved_records` table for persisting results.
 
+### Matcher Accuracy (solution-based)
+
+`tests/test_matcher_accuracy.py` evaluates whether the retrieved guide semantically matches the solution (repair_summary/repair_guide) from the scraped record. No matched_guide_id required:
+
+```bash
+MATCHER_EVAL_SAMPLE_SIZE=10 python -m pytest tests/test_matcher_accuracy.py -v -s
+python tests/test_matcher_accuracy.py --sample-size 10 --threshold 0.55
+```
+
 ## BMW Fault Code Mappings
 
 | Script | Purpose |

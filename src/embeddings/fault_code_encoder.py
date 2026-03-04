@@ -126,6 +126,13 @@ class FaultCodeEncoder:
         
         return embeddings
     
+    def eval(self) -> "FaultCodeEncoder":
+        """Set model and projection to eval mode for inference."""
+        if hasattr(self.model, "eval"):
+            self.model.eval()
+        self.projection.eval()
+        return self
+
     def get_dimension(self) -> int:
         """Get output dimension"""
         return self.projection_dim
