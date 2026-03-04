@@ -65,6 +65,8 @@ Populated by `mist-cli fetch-bmwfault`:
 - **bmwfault_pcodes**: Full rows from bmwfault.codes Lookup (PCode, Code, Label, ECU Variant, ECU Label). `fault_info` column stores JSON from DiagView pages (fault_code_description, service_plan, fault_impact, service_notes, etc.).
 - **bmwfault_mappings**: Aggregated pcode → comma-separated hex codes for OBD→ISTA lookup in `get_lookup_variants()`.
 
+Retrieval uses these mappings to align user P-codes (e.g. P0301) with ISTA hex codes (e.g. 29CC) in vector search, KG lookups, and `ista_db.get_procedures_for_fault()`. Run `mist-cli fetch-bmwfault` to improve P-code coverage.
+
 ## Database Schema
 
 For document hierarchy and Process Analysis (preliminary tasks, Ref:h3 links), see [ISTA_DATABASE_GUIDE.md](ISTA_DATABASE_GUIDE.md).

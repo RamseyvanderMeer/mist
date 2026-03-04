@@ -2,6 +2,8 @@
 Knowledge graph query interface for path finding and relationship reasoning.
 """
 import networkx as nx
+
+from src.database.fault_code_mapping import get_lookup_variants
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any
 import logging
@@ -295,10 +297,14 @@ class KnowledgeGraphQuery:
             - path_score: Score of the path from fault to procedure
             - path: List of node IDs forming the path
         """
-        # Find fault node using correct format
-        fault_node = self.get_node_by_code(fault_code)
+        # Find fault node - try variants (P-code -> BMW hex) since graph uses ISTA codes
+        fault_node = None
+        for variant in get_lookup_variants(fault_code):
+            fault_node = self.get_node_by_code(variant)
+            if fault_node:
+                break
         if not fault_node:
-            logger.debug(f"Fault code {fault_code} not found in graph")
+            logger.debug(f"Fault code {fault_code} not found in graph (tried: {get_lookup_variants(fault_code)})")
             return []
         
         # Find paths to repair procedures (using correct target type)

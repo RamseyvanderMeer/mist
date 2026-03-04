@@ -13,6 +13,7 @@ import numpy as np
 import torch
 
 from src.paths import Paths
+from src.database.fault_code_mapping import get_search_codes
 from src.retrieval.vector_store import VectorStore, VectorStoreOperationError
 from src.retrieval.reranker import Reranker, RerankerAPIError, RerankerModelError
 from src.retrieval.ranker import Ranker, RankerError
@@ -212,7 +213,9 @@ class EnhancedRetriever:
     ) -> str:
         """Build query text for vector search from fault codes and optional description."""
         if fault_codes:
-            fault_text = ", ".join(fault_codes)
+            # Use BMW variants to align with indexed documents (ISTA stores hex codes)
+            search_codes = get_search_codes(fault_codes)
+            fault_text = ", ".join(search_codes)
             if description and description.strip():
                 return f"Fault codes: {fault_text}. Problem: {description.strip()}"
             return fault_text

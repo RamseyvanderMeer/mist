@@ -6,6 +6,7 @@ from pathlib import Path
 import logging
 
 from src.paths import Paths
+from src.database.fault_code_mapping import get_search_codes
 from src.retrieval.enhanced_retriever import EnhancedRetriever, EnhancedRetrieverError
 from src.retrieval.ambiguity_detector import AmbiguityDetector, AmbiguityDetectorError
 from src.retrieval.clarification_generator import ClarificationGenerator, ClarificationGeneratorError
@@ -436,7 +437,9 @@ class ConversationalRAG:
         """
         if not fault_codes:
             return description.strip() if description else ""
-        fault_text = ", ".join(fault_codes)
+        # Use BMW variants to align with indexed documents (ISTA stores hex codes)
+        search_codes = get_search_codes(fault_codes)
+        fault_text = ", ".join(search_codes)
         if description and description.strip():
             return f"Fault codes: {fault_text}. Problem: {description.strip()}"
         return fault_text

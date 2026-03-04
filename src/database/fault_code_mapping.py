@@ -120,6 +120,27 @@ def _get_obd_to_bmw() -> dict[str, str]:
     return result
 
 
+def get_search_codes(fault_codes: List[str]) -> List[str]:
+    """
+    Expand fault codes to BMW variants for search.
+
+    Aligns query text with indexed documents, which store BMW hex codes
+    (e.g. 29CC, 420) from XEP_FAULTCODES. Use these for vector search
+    and KG lookups when user provides P-codes.
+
+    Sources: bmwfault_mappings table (mist-cli fetch-bmwfault), JSON, built-in.
+    """
+    seen: set[str] = set()
+    result: List[str] = []
+    for code in fault_codes or []:
+        for v in get_lookup_variants(code):
+            v_upper = v.strip().upper() if v else ""
+            if v_upper and v_upper not in seen:
+                seen.add(v_upper)
+                result.append(v_upper)
+    return result
+
+
 def get_lookup_variants(code: str) -> List[str]:
     """
     Return fault code variants to try when looking up in ISTA.
