@@ -2,13 +2,14 @@
 MIST CLI - single entry point for all commands.
 
 Usage:
-    mist migrate
-    mist readiness
-    mist build-kg [--incremental] [--output PATH]
-    mist train [--config PATH] [--resume PATH] [--device cuda|cpu]
-    mist scrape [forum|doc|example] [--limit-items N] [--limit-pages N]
-    mist index [--limit N] [--no-resume] [--batch-size N] [--worker-id ID]
-    mist extract-titles [--output PATH] [--format csv|json]
+    mist-cli migrate
+    mist-cli readiness
+    mist-cli build-kg [--incremental] [--output PATH]
+    mist-cli train [--config PATH] [--resume PATH] [--device cuda|cpu]
+    mist-cli scrape [forum|doc|example] [--limit-items N] [--limit-pages N]
+    mist-cli index [--limit N] [--no-resume] [--batch-size N] [--worker-id ID]
+    mist-cli extract-titles [--output PATH] [--format csv|json]
+    mist-cli fetch-bmwfault [--limit N] [--codes P0301,P0420] [--output PATH]
     mist feedback stats|export|add|list ...
 """
 import sys
@@ -175,6 +176,47 @@ def extract_titles_cmd(
     if incremental:
         args.append("--incremental")
     raise typer.Exit(_run_script("extract_repair_guide_titles.py", args))
+
+
+@app.command("fetch-bmwfault")
+def fetch_bmwfault_cmd(
+    limit: int | None = typer.Option(None, "--limit", "-n", help="Limit number of P-codes (for testing)"),
+    codes: str | None = typer.Option(None, "--codes", "-c", help="Comma-separated P-codes (e.g. P0301,P0420)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output JSON path"),
+    playwright: bool = typer.Option(False, "--playwright", help="Use Playwright (default: HTTP with CLOUDFLARE_COOKIES)"),
+    save_cookies: bool = typer.Option(False, "--save-cookies", help="Save cookies after Playwright run"),
+    no_resume: bool = typer.Option(False, "--no-resume", help="Start fresh, ignore checkpoint"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Log all API requests and steps"),
+    headful: bool = typer.Option(False, "--headful", help="Show browser window (less likely blocked by Cloudflare)"),
+    refresh_cookies: bool = typer.Option(False, "--refresh-cookies", help="Refresh cookies via HTTP+Capsolver"),
+    no_diagview: bool = typer.Option(False, "--no-diagview", help="Skip DiagView fetches (fastest)"),
+    proxy: str | None = typer.Option(None, "--proxy", "-p", help="Proxy URL (e.g. http://host:port) for blocked IPs"),
+):
+    """Fetch P-code → BMW hex mappings and full row data from bmwfault.codes."""
+    args = []
+    if limit is not None:
+        args.extend(["--limit", str(limit)])
+    if codes:
+        args.extend(["--codes", codes])
+    if output is not None:
+        args.extend(["--output", str(output)])
+    if playwright:
+        args.append("--playwright")
+    if save_cookies:
+        args.append("--save-cookies")
+    if no_resume:
+        args.append("--no-resume")
+    if verbose:
+        args.append("--verbose")
+    if headful:
+        args.append("--headful")
+    if refresh_cookies:
+        args.append("--refresh-cookies")
+    if no_diagview:
+        args.append("--no-diagview")
+    if proxy:
+        args.extend(["--proxy", proxy])
+    raise typer.Exit(_run_script("fetch_bmwfault_mappings.py", args))
 
 
 def main():

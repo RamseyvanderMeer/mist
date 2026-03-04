@@ -16,7 +16,7 @@ scraper = [
 ]
 
 [project.scripts]
-mist = "src.cli.main:app"
+mist-cli = "src.cli.main:app"
 
 [tool.setuptools.packages.find]
 where = ["."]

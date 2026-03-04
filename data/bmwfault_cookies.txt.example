@@ -1,0 +1,7 @@
+# Paste your Cookie header here (from browser: Copy as cURL, use the -b value)
+# Format: .AspNetCore.Antiforgery.XXX=value; cf_clearance=value
+# Rename to bmwfault_cookies.txt and fill in your cookies
+#
+# Or run: mist-cli fetch-bmwfault --refresh-cookies
+#   Opens browser; complete any Cloudflare/Turnstile challenge; cookies are saved.
+#   Use when cookies expire or you get "too often" rate limit.

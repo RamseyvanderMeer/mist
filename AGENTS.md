@@ -44,10 +44,17 @@ No linting config is checked in. `ruff` is installed in the venv:
 ruff check src/ --select E,F
 ```
 
+### CLI commands
+
+Use `mist-cli` (avoids conflict with npm `mist`). After `pip install -e .`:
+  - `mist-cli fetch-bmwfault --limit 10`
+  - `mist-cli migrate`, `mist-cli index`, etc.
+  - Or: `python mist.py fetch-bmwfault` from project root
+
 ### Database migrations
 
 ```bash
-mist migrate
+mist-cli migrate
 # Or: PYTHONPATH=/workspace python scripts/run_migrations.py
 ```
 

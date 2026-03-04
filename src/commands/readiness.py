@@ -145,7 +145,7 @@ def run() -> int:
 
     print("\n" + "=" * 60)
     if all_ok:
-        print("READY: You can run: mist index")
+        print("READY: You can run: mist-cli index")
         return 0
     print("NOT READY: Fix the issues above before indexing.")
     return 1

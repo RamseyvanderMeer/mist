@@ -190,6 +190,25 @@ class Paths:
             Path to database file in data/databases directory
         """
         return self.databases / db_name
+
+    def get_ista_db_path(self) -> Path:
+        """
+        Get path to BMW ISTA database, trying multiple locations.
+        
+        Tries: ISTA_DB_PATH env, then DiagDocDb_Decrypted.sqlite,
+        then DiagDocDb_DECRYPTED.sqlite (case variations for WSL).
+        
+        Returns:
+            Path to existing file, or None if not found
+        """
+        env_path = os.getenv("ISTA_DB_PATH")
+        if env_path:
+            return Path(env_path).expanduser().resolve()
+        for name in ("DiagDocDb_Decrypted.sqlite", "DiagDocDb_DECRYPTED.sqlite"):
+            p = self.databases / name
+            if p.exists():
+                return p
+        return self.databases / "DiagDocDb_Decrypted.sqlite"  # Default for error message
     
     def get_mist_db_path(self) -> Path:
         """

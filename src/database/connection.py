@@ -66,6 +66,11 @@ class DatabaseConnection:
         finally:
             session.close()
 
+    def close(self) -> None:
+        """Release database connection resources."""
+        if hasattr(self, "_engine") and self._engine is not None:
+            self._engine.dispose()
+
 
 def create_connection(db_path: Union[str, Path]) -> DatabaseConnection:
     """

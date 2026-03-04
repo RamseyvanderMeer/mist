@@ -82,7 +82,10 @@ def validate_schema(db_path: str) -> Tuple[bool, List[str]]:
         'feedback_sessions',
         'mist_embeddings',
         'mist_feedback',
-        'mist_training_checkpoints'
+        'mist_training_checkpoints',
+        'bmwfault_mappings',
+        'bmwfault_fetch_checkpoint',
+        'bmwfault_pcodes',
     ]
     
     expected_indexes = [

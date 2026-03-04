@@ -36,7 +36,7 @@ MIST combines:
    ```bash
    pip install --upgrade pip
    pip install -r requirements.txt
-   pip install -e .  # Editable install: enables `mist` CLI and importable packages
+   pip install -e .  # Editable install: enables `mist-cli` and importable packages
    ```
 
 4. **Set up environment variables**
@@ -58,13 +58,13 @@ MIST combines:
 
 5. **Run database migrations**
    ```bash
-   mist migrate
+   mist-cli migrate
    # Or: python scripts/run_migrations.py
    ```
 
 6. **Build knowledge graph** (one-time setup)
    ```bash
-   mist build-kg
+   mist-cli build-kg
    # Or: python scripts/build_knowledge_graph.py
    ```
 
@@ -78,9 +78,12 @@ MIST combines:
 
 8. **Index repair guides** (one-time setup, may take a while)
    ```bash
-   mist index
+   mist-cli index
+   # Or: python -m src.cli.main index
    # Or: python scripts/index_repair_guides.py
    ```
+
+   Use `mist-cli` (not `mist`) to avoid conflict with the npm package.
 
 ## Training
 
@@ -92,19 +95,19 @@ Train embeddings using contrastive learning on collected feedback:
 
 ```bash
 # Basic training with default configs
-mist train
+mist-cli train
 
 # With custom config files
-mist train --config config/training_config.yaml --embedding-config config/embedding_config.yaml
+mist-cli train --config config/training_config.yaml --embedding-config config/embedding_config.yaml
 
 # Resume from checkpoint
-mist train --resume data/embeddings/checkpoints/checkpoint_epoch_5.pt
+mist-cli train --resume data/embeddings/checkpoints/checkpoint_epoch_5.pt
 
 # Specify device (auto, cuda, or cpu)
-mist train --device cuda
+mist-cli train --device cuda
 
 # Set logging level
-mist train --log-level DEBUG
+mist-cli train --log-level DEBUG
 ```
 
 ### Training Configuration

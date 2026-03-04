@@ -65,3 +65,8 @@ htmlcov/
 # Temporary files
 *.tmp
 *.bak
+
+
+data/bmwfault_cookies.txt
+data/bmwfault_debug_*.html
+data/forum_pcodes.json

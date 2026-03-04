@@ -58,6 +58,13 @@ results = cursor.fetchall()
 - `XEP_REFDIAGOBJECTS`: Fault-diagnostic relationships
 - `XEP_REFDIAGNOSISTREE`: Diagnostic tree structure
 
+### BMW Fault Mappings (mist_data.db)
+
+Populated by `mist-cli fetch-bmwfault`:
+
+- **bmwfault_pcodes**: Full rows from bmwfault.codes Lookup (PCode, Code, Label, ECU Variant, ECU Label). `fault_info` column stores JSON from DiagView pages (fault_code_description, service_plan, fault_impact, service_notes, etc.).
+- **bmwfault_mappings**: Aggregated pcode → comma-separated hex codes for OBD→ISTA lookup in `get_lookup_variants()`.
+
 ## Database Schema
 
 For document hierarchy and Process Analysis (preliminary tasks, Ref:h3 links), see [ISTA_DATABASE_GUIDE.md](ISTA_DATABASE_GUIDE.md).

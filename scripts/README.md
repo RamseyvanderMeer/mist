@@ -2,17 +2,18 @@
 
 Utility scripts for database migrations, indexing, scraping, training, and maintenance.
 
-**Preferred:** Use the unified `mist` CLI after `pip install -e .`:
+**Preferred:** Use `mist-cli` after `pip install -e .` (avoids conflict with npm `mist`):
 
 ```bash
-mist migrate              # Run migrations
-mist readiness            # Check index readiness
-mist build-kg            # Build knowledge graph
-mist train               # Train embeddings
-mist scrape forum        # Run forum spider
-mist index               # Index repair guides
-mist extract-titles      # Extract repair guide titles
-mist --help              # See all commands
+mist-cli migrate              # Run migrations
+mist-cli readiness            # Check index readiness
+mist-cli build-kg            # Build knowledge graph
+mist-cli train               # Train embeddings
+mist-cli scrape forum        # Run forum spider
+mist-cli index               # Index repair guides
+mist-cli extract-titles      # Extract repair guide titles
+mist-cli fetch-bmwfault      # Fetch P-code mappings from bmwfault.codes (HTTP mode by default)
+mist-cli --help              # See all commands
 ```
 
 The scripts below are thin wrappers that call into `src.commands` or the `mist` CLI.
@@ -78,6 +79,24 @@ The scripts below are thin wrappers that call into `src.commands` or the `mist` 
 |--------|---------|
 | `e2e_match_test.py` | End-to-end match test |
 | `e2e_one_procedure_one_record.py` | E2E test: one procedure, one record |
+
+## BMW Fault Code Mappings
+
+| Script | Purpose |
+|--------|---------|
+| `fetch_bmwfault_mappings.py` | Fetch P-code → BMW hex mappings and full row data from bmwfault.codes |
+
+Data is stored in `mist_data.db` (run `mist-cli migrate` first):
+- **bmwfault_pcodes**: Full rows (PCode, Code, Label, ECU Variant, ECU Label, fault_info JSON from DiagView)
+- **bmwfault_mappings**: Aggregated pcode → hex_codes for `get_lookup_variants()`
+
+**HTTP mode:** Set `CLOUDFLARE_COOKIES` in `.env` or `data/bmwfault_cookies.txt`. `CAPSOLVER_API_KEY` for Turnstile. Use `--refresh-cookies` to refresh via HTTP+Capsolver (works on WSL).
+
+**IP block / VPN:** If you see "This service is no longer available to you", the script waits 10 min (for VPN IP rotation) then retries. Proxies (`BMWFAULT_PROXY`) are optional.
+
+**Rate limiting:** On app-level rate limit ("too often") or Capsolver timeout: exponential backoff (9→27→81 min). Use `-v` to save debug HTML when empty responses contain error alerts.
+
+**Options:** `--no-diagview` skips fetching DiagView pages (faster, no fault_info JSON).
 
 ## Other
 
