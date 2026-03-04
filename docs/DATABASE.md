@@ -67,6 +67,10 @@ Populated by `mist-cli fetch-bmwfault`:
 
 Retrieval uses these mappings to align user P-codes (e.g. P0301) with ISTA hex codes (e.g. 29CC) in vector search, KG lookups, and `ista_db.get_procedures_for_fault()`. Run `mist-cli fetch-bmwfault` to improve P-code coverage.
 
+### Retrieved Records (Neon/Postgres)
+
+- **retrieved_records**: Stores retrieval evaluation results (ground truth vs. retrieved guides). Populated by `tests/test_retrieval_evaluation.py` when `RETRIEVAL_EVAL_PERSIST=1`. Run migration: `python scripts/run_retrieved_records_migration.py`.
+
 ## Database Schema
 
 For document hierarchy and Process Analysis (preliminary tasks, Ref:h3 links), see [ISTA_DATABASE_GUIDE.md](ISTA_DATABASE_GUIDE.md).

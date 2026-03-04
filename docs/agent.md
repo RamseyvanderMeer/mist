@@ -14,6 +14,7 @@
 | Training pipeline (scraped data) | [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md), [DATA_OPTIMIZATION_SUMMARY.md](DATA_OPTIMIZATION_SUMMARY.md) |
 | Project restructuring | [RESTRUCTURING_PROPOSAL.md](RESTRUCTURING_PROPOSAL.md) |
 | CLI usage | Use `mist-cli migrate`, `mist-cli train`, etc. after `pip install -e .` |
+| Retrieval evaluation | `tests/test_retrieval_evaluation.py` — eval using scraped_records (matched_guide_id); requires DATABASE_URL, ChromaDB, ISTA |
 
 ## docs/ Contents
 

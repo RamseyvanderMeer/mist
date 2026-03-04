@@ -25,6 +25,7 @@ The scripts below are thin wrappers that call into `src.commands` or the `mist` 
 | `run_migrations.py` | Create/update MIST SQLite database (`mist_data.db`) |
 | `run_postgres_migration.py` | Migrate `scraped_records` table to Postgres |
 | `run_indexing_work_migration.py` | Create `indexing_work` table for multi-machine indexing |
+| `run_retrieved_records_migration.py` | Create `retrieved_records` table for retrieval evaluation |
 
 ## Indexing
 
@@ -79,6 +80,20 @@ The scripts below are thin wrappers that call into `src.commands` or the `mist` 
 |--------|---------|
 | `e2e_match_test.py` | End-to-end match test |
 | `e2e_one_procedure_one_record.py` | E2E test: one procedure, one record |
+
+## Retrieval Evaluation
+
+Run `tests/test_retrieval_evaluation.py` to evaluate retrieval using scraped_records (records with `matched_guide_id` as ground truth):
+
+```bash
+# Pytest (sample size via env, default 10)
+RETRIEVAL_EVAL_SAMPLE_SIZE=20 RETRIEVAL_EVAL_PERSIST=1 python -m pytest tests/test_retrieval_evaluation.py -v -s
+
+# Standalone script
+python tests/test_retrieval_evaluation.py --sample-size 20 --persist
+```
+
+Requires: `DATABASE_URL`, ChromaDB Cloud, ISTA DB, knowledge graph. Run `match_repair_guides.py` first to populate `matched_guide_id`. Optional: `run_retrieved_records_migration.py` to create `retrieved_records` table for persisting results.
 
 ## BMW Fault Code Mappings
 
