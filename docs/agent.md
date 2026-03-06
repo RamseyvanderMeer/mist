@@ -15,7 +15,9 @@
 | Project restructuring | [RESTRUCTURING_PROPOSAL.md](RESTRUCTURING_PROPOSAL.md) |
 | CLI usage | Use `mist-cli migrate`, `mist-cli train`, etc. after `pip install -e .` |
 | Retrieval evaluation | `tests/test_retrieval_evaluation.py` — eval using scraped_records (matched_guide_id); requires DATABASE_URL, ChromaDB, ISTA |
-| Matcher accuracy | `tests/test_matcher_accuracy.py` — compare retrieved guides to solution (repair_summary/repair_guide); optional LLM eval via OPENAI_API_KEY + `--use-llm` or MATCHER_EVAL_USE_LLM=1 |
+| Matcher accuracy | `tests/test_matcher_accuracy.py` — compare retrieved guides to solution; default symptom-only query, optional `MATCHER_EVAL_QUERY_MODE=solution` or `--query-mode solution` benchmark |
+| Matcher accuracy delta | `tests/test_matcher_accuracy.py::test_matcher_accuracy_query_mode_delta` — runs symptom and solution modes and prints delta |
+| Retrieval mismatch | [RETRIEVAL_MISMATCH_INVESTIGATION.md](RETRIEVAL_MISMATCH_INVESTIGATION.md) — why similarity ≠ LLM match, and recent fixes (title fallback, procedure dedup, min_similarity) |
 
 ## docs/ Contents
 

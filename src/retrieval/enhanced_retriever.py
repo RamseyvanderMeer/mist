@@ -186,7 +186,12 @@ class EnhancedRetriever:
             query_text = search_query_text
         
         # Stage 1: Vector search (FaultCodeEncoder, same space as indexed procedure text)
-        candidates = self._stage1_vector_search(search_query_text)
+        filter_dict = None
+        if fault_codes:
+            search_codes = get_search_codes(fault_codes)
+            if search_codes:
+                filter_dict = {"fault_codes": search_codes}
+        candidates = self._stage1_vector_search(search_query_text, filter_dict=filter_dict)
         if not candidates:
             logger.warning("Stage 1 returned no candidates")
             return []
@@ -223,15 +228,22 @@ class EnhancedRetriever:
             return f"Problem: {description.strip()}"
         return ""
 
-    def _stage1_vector_search(self, query_text: str) -> List[Dict[str, Any]]:
+    def _stage1_vector_search(
+        self,
+        query_text: str,
+        filter_dict: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Stage 1: Vector search for initial candidates.
         
         Uses FaultCodeEncoder (same as index) with is_query=True for E5 asymmetric retrieval.
         Index stores procedure text with is_query=False.
+        Optionally filters by fault_codes metadata; falls back to unfiltered search if empty.
         
         Args:
             query_text: Query text (fault codes + optional problem description)
+            filter_dict: Optional metadata filter (e.g. {"fault_codes": [...]}) to restrict
+                results to procedures linked to given fault codes in ISTA.
         
         Returns:
             List of candidate dictionaries from vector search
@@ -254,14 +266,58 @@ class EnhancedRetriever:
             candidates = self.vector_store.search(
                 query_embedding=query_embedding,
                 top_k=self.initial_k,
-                filter_dict=None
+                filter_dict=filter_dict,
             )
+            if not candidates and filter_dict:
+                logger.info(
+                    "Stage 1: No results with fault_code filter, retrying without filter"
+                )
+                candidates = self.vector_store.search(
+                    query_embedding=query_embedding,
+                    top_k=self.initial_k,
+                    filter_dict=None,
+                )
+
+            # Apply minimum similarity threshold (reduces noisy candidates early)
+            min_similarity = (
+                self.config.get("retrieval", {}).get("min_similarity", 0.0)
+                if isinstance(self.config, dict)
+                else 0.0
+            )
+            try:
+                min_similarity = float(min_similarity)
+            except Exception:
+                min_similarity = 0.0
+            if min_similarity > 0 and candidates:
+                before = len(candidates)
+                candidates = [
+                    c for c in candidates
+                    if float(c.get("score", 0.0) or 0.0) >= min_similarity
+                ]
+                if before != len(candidates):
+                    logger.info(
+                        "Stage 1: Filtered candidates by min_similarity=%.3f (%d -> %d)",
+                        min_similarity,
+                        before,
+                        len(candidates),
+                    )
             
             logger.info(f"Stage 1: Retrieved {len(candidates)} candidates")
             return candidates
             
         except VectorStoreOperationError as e:
             logger.error(f"Stage 1 vector search failed: {e}")
+            if filter_dict:
+                # If a filtered search fails (e.g., Chroma where-clause quotas), retry unfiltered.
+                try:
+                    logger.info("Stage 1: Retrying unfiltered search after filter failure")
+                    return self.vector_store.search(
+                        query_embedding=query_embedding,
+                        top_k=self.initial_k,
+                        filter_dict=None,
+                    )
+                except Exception:
+                    return []
             return []
         except Exception as e:
             logger.error(f"Stage 1 unexpected error: {e}", exc_info=True)
@@ -440,23 +496,81 @@ class EnhancedRetriever:
                 kg_scores=kg_scores,
                 feedback_scores=feedback_scores if feedback_scores else None
             )
-            
-            logger.info(f"Stage 4: Ranked {len(ranked)} candidates")
-            return ranked
+
+            aggregated = self._aggregate_by_procedure(ranked)
+            logger.info(
+                f"Stage 4: Ranked {len(ranked)} candidates into {len(aggregated)} procedures"
+            )
+            return aggregated
             
         except RankerError as e:
             logger.error(f"Stage 4 ranking failed: {e}. Returning candidates without combined scores.")
             # Return candidates sorted by original score
-            return sorted(
+            ranked = sorted(
                 candidates,
                 key=lambda x: x.get("score", 0.0),
                 reverse=True
             )
+            return self._aggregate_by_procedure(ranked)
         except Exception as e:
             logger.error(f"Stage 4 unexpected error: {e}", exc_info=True)
             # Return candidates sorted by original score
-            return sorted(
+            ranked = sorted(
                 candidates,
                 key=lambda x: x.get("score", 0.0),
                 reverse=True
             )
+            return self._aggregate_by_procedure(ranked)
+
+    @staticmethod
+    def _to_float_score(value: Any, default: float = 0.0) -> float:
+        """Safely convert score-like values to float."""
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _aggregate_by_procedure(self, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Aggregate chunk-level candidates to one best result per procedure.
+
+        Ranking is done across procedure_id. For each procedure, we keep the chunk
+        with the best combined score, which avoids a single weak chunk from a
+        procedure out-ranking the better procedure.
+        """
+        if not candidates:
+            return []
+
+        best_by_procedure: Dict[str, Dict[str, Any]] = {}
+        for candidate in candidates:
+            procedure_id = candidate.get("procedure_id") or candidate.get("id", "")
+            if not procedure_id:
+                continue
+
+            candidate_score = self._to_float_score(
+                candidate.get("combined_score", candidate.get("score", 0.0)),
+                0.0
+            )
+            existing = best_by_procedure.get(procedure_id)
+            if existing is None:
+                best_by_procedure[procedure_id] = candidate
+                continue
+
+            existing_score = self._to_float_score(
+                existing.get("combined_score", existing.get("score", 0.0)),
+                0.0
+            )
+            if candidate_score > existing_score:
+                best_by_procedure[procedure_id] = candidate
+                continue
+
+            existing_vec_score = self._to_float_score(existing.get("score", 0.0), 0.0)
+            candidate_vec_score = self._to_float_score(candidate.get("score", 0.0), 0.0)
+            if candidate_score == existing_score and candidate_vec_score > existing_vec_score:
+                best_by_procedure[procedure_id] = candidate
+
+        return sorted(
+            best_by_procedure.values(),
+            key=lambda x: x.get("combined_score", x.get("score", 0.0)),
+            reverse=True,
+        )

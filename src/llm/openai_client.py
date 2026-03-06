@@ -2,7 +2,8 @@
 OpenAI LLM client implementation.
 """
 import os
-from typing import List, Dict, Iterator
+import asyncio
+from typing import List, Dict, Iterator, Any, AsyncIterator
 from openai import OpenAI
 from .provider import LLMProvider
 import logging
@@ -35,9 +36,9 @@ class OpenAIClient(LLMProvider):
             model=self.model,
             messages=messages,
             temperature=kwargs.get("temperature", self.temperature),
-            max_tokens=kwargs.get("max_tokens", self.max_tokens)
+            max_tokens=kwargs.get("max_tokens", self.max_tokens),
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""
     
     def generate_stream(self, messages: List[Dict[str, str]], **kwargs) -> Iterator[str]:
         """Generate streaming text"""
@@ -46,8 +47,32 @@ class OpenAIClient(LLMProvider):
             messages=messages,
             temperature=kwargs.get("temperature", self.temperature),
             max_tokens=kwargs.get("max_tokens", self.max_tokens),
-            stream=True
+            stream=True,
         )
         for chunk in stream:
             if chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
+
+    def stream(self, messages: List[Dict[str, str]], **kwargs) -> Iterator[str]:
+        """Stream text (preferred method name)."""
+        return self.generate_stream(messages, **kwargs)
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Return provider/model metadata."""
+        return {
+            "provider": "openai",
+            "model_name": self.model,
+            "max_tokens": int(self.max_tokens),
+            "supports_streaming": True,
+            "supports_async": True,
+        }
+
+    async def agenerate(self, messages: List[Dict[str, str]], **kwargs) -> str:
+        """Async wrapper around generate()."""
+        return await asyncio.to_thread(self.generate, messages, **kwargs)
+
+    async def astream(self, messages: List[Dict[str, str]], **kwargs) -> AsyncIterator[str]:
+        """Async wrapper around stream()."""
+        iterator = self.stream(messages, **kwargs)
+        for chunk in iterator:
+            yield chunk

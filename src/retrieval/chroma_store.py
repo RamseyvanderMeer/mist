@@ -172,45 +172,152 @@ class ChromaVectorStore:
                 query_embedding = query_embedding.flatten()
             query_vec = query_embedding.tolist()
 
-            where = None
-            if filter_dict and "fault_codes" in filter_dict:
-                codes = filter_dict["fault_codes"]
-                if codes:
-                    # ChromaDB: $contains checks if array contains value
-                    where = {"$or": [{"fault_codes": {"$contains": c}} for c in codes]}
-
-            result = self.collection.query(
-                query_embeddings=[query_vec],
-                n_results=top_k,
-                where=where,
-                include=["metadatas", "distances"],
+            return self._search_with_filters(
+                query_vec=query_vec,
+                top_k=top_k,
+                filter_dict=filter_dict,
             )
-
-            formatted = []
-            if result and result["ids"] and result["ids"][0]:
-                ids = result["ids"][0]
-                metadatas = result.get("metadatas", [[]])[0] or []
-                distances = result.get("distances", [[]])[0] or []
-
-                for j, doc_id in enumerate(ids):
-                    meta = metadatas[j] if j < len(metadatas) else {}
-                    dist = distances[j] if j < len(distances) else 0.0
-                    # ChromaDB cosine returns distance (0=identical); convert to similarity
-                    score = 1.0 - dist if dist <= 1.0 else 1.0 / (1.0 + dist)
-                    formatted.append({
-                        "id": str(doc_id),
-                        "score": float(score),
-                        "text": meta.get("text", ""),
-                        "title": meta.get("title", ""),
-                        "procedure_id": meta.get("procedure_id", ""),
-                        "procedure_name": meta.get("procedure_name", ""),
-                        "fault_codes": meta.get("fault_codes", []),
-                        "ecu_category": meta.get("ecu_category", ""),
-                    })
-            return formatted
         except Exception as e:
             logger.error(f"Error searching ChromaDB: {e}")
             raise VectorStoreOperationError(f"Search failed: {e}") from e
+
+    def _search_with_filters(
+        self,
+        query_vec: List[float],
+        top_k: int = 10,
+        filter_dict: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute search with fault-code filters while staying within Chroma predicate limits.
+
+        Some Chroma Cloud plans cap where-clause predicates (default 8). If a
+        fault_codes list exceeds that, we run batched queries and merge results.
+        """
+        where_filters = self._build_where(filter_dict)
+        normalized_filter: Optional[Dict[str, Any]] = dict(filter_dict) if filter_dict else None
+
+        fault_codes = None
+        if filter_dict and "fault_codes" in filter_dict:
+            raw_codes = filter_dict.get("fault_codes")
+            if isinstance(raw_codes, list):
+                seen = set()
+                fault_codes = []
+                for code in raw_codes:
+                    if not code:
+                        continue
+                    code_str = str(code).strip()
+                    if not code_str:
+                        continue
+                    if code_str in seen:
+                        continue
+                    seen.add(code_str)
+                    fault_codes.append(code_str)
+
+            if normalized_filter is not None:
+                normalized_filter["fault_codes"] = fault_codes
+            where_filters = self._build_where(normalized_filter)
+
+        if not fault_codes:
+            return self._execute_query(query_vec=query_vec, top_k=top_k, where=where_filters)
+
+        try:
+            max_predicates = int(os.getenv("CHROMA_MAX_WHERE_PREDICATES", "8"))
+        except Exception:
+            max_predicates = 8
+
+        # Chroma Cloud enforces a hard quota on where predicates (often 8).
+        # Treat env var as a hint but cap to 8 by default so we don't trip quotas.
+        hard_cap = int(os.getenv("CHROMA_WHERE_PREDICATE_HARD_CAP", "8") or "8")
+        if hard_cap > 0:
+            if max_predicates > hard_cap:
+                logger.warning(
+                    "CHROMA_MAX_WHERE_PREDICATES=%s exceeds hard cap=%s; capping to %s to avoid quota errors.",
+                    max_predicates,
+                    hard_cap,
+                    hard_cap,
+                )
+                max_predicates = hard_cap
+
+        if max_predicates <= 0:
+            max_predicates = len(fault_codes)
+
+        if len(fault_codes) <= max_predicates:
+            return self._execute_query(query_vec=query_vec, top_k=top_k, where=where_filters)
+
+        # Build non-fault filters once and split only fault-code predicates in chunks.
+        logger.warning(
+            "Fault code predicate count (%s) exceeds configured Chroma limit (%s); "
+            "querying in chunks and merging results.",
+            len(fault_codes),
+            max_predicates,
+        )
+        base_filters = {
+            key: value for key, value in (normalized_filter or {}).items() if key != "fault_codes"
+        }
+        base_where = self._build_where(base_filters) if base_filters else None
+
+        merged: Dict[str, Dict[str, Any]] = {}
+        for idx in range(0, len(fault_codes), max_predicates):
+            chunk_codes = fault_codes[idx : idx + max_predicates]
+            if not chunk_codes:
+                continue
+
+            chunk_filter = {
+                "$or": [{"fault_codes": {"$contains": c}} for c in chunk_codes]
+            }
+            if base_where is not None:
+                chunk_where = {"$and": [base_where, chunk_filter]}
+            else:
+                chunk_where = chunk_filter
+
+            results = self._execute_query(query_vec=query_vec, top_k=top_k, where=chunk_where)
+            for item in results:
+                existing = merged.get(item["id"])
+                if existing is None or item["score"] > existing["score"]:
+                    merged[item["id"]] = item
+
+        if merged:
+            ranked = sorted(merged.values(), key=lambda item: item["score"], reverse=True)
+            return ranked[:top_k]
+
+        # If chunked queries return nothing, keep behavior same as existing
+        return []
+
+    def _execute_query(
+        self,
+        query_vec: List[float],
+        top_k: int = 10,
+        where: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        result = self.collection.query(
+            query_embeddings=[query_vec],
+            n_results=top_k,
+            where=where,
+            include=["metadatas", "distances"],
+        )
+
+        formatted: List[Dict[str, Any]] = []
+        if result and result["ids"] and result["ids"][0]:
+            ids = result["ids"][0]
+            metadatas = result.get("metadatas", [[]])[0] or []
+            distances = result.get("distances", [[]])[0] or []
+
+            for j, doc_id in enumerate(ids):
+                meta = metadatas[j] if j < len(metadatas) else {}
+                dist = distances[j] if j < len(distances) else 0.0
+                # ChromaDB cosine returns distance (0=identical); convert to similarity
+                score = 1.0 - dist if dist <= 1.0 else 1.0 / (1.0 + dist)
+                formatted.append({
+                    "id": str(doc_id),
+                    "score": float(score),
+                    "text": meta.get("text", ""),
+                    "title": meta.get("title", ""),
+                    "procedure_id": meta.get("procedure_id", ""),
+                    "procedure_name": meta.get("procedure_name", ""),
+                    "fault_codes": meta.get("fault_codes", []),
+                    "ecu_category": meta.get("ecu_category", ""),
+                })
+        return formatted
 
     def update(
         self,

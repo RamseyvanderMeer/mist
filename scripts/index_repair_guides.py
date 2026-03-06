@@ -51,10 +51,26 @@ logger = logging.getLogger(__name__)
 
 def _ensure_indexing_work_table(engine) -> None:
     """Create indexing_work table if it does not exist."""
+    from sqlalchemy import text
+    logger.info("Ensuring indexing_work table exists...")
+    start = time.time()
+
+    # Fast-path: if the table already exists, skip re-running migration DDL
+    with engine.connect() as conn:
+        table_exists = conn.execute(
+            text("SELECT to_regclass(:table_name)"),
+            {"table_name": "indexing_work"},
+        ).scalar()
+
+    if table_exists:
+        logger.info("indexing_work table already exists. Skipping migration DDL.")
+        logger.info("Indexing work table ready (%.2fs).", time.time() - start)
+        return
+
     migration_file = Path(__file__).parent.parent / "scripts" / "migrations" / "create_indexing_work_postgres.sql"
     if not migration_file.exists():
         raise FileNotFoundError(f"Migration file not found: {migration_file}")
-    from sqlalchemy import text
+
     with open(migration_file, "r") as f:
         sql = f.read()
     with engine.connect() as conn:
@@ -65,26 +81,80 @@ def _ensure_indexing_work_table(engine) -> None:
             except Exception as e:
                 if "already exists" not in str(e).lower():
                     raise
+    logger.info("Indexing work table ready (%.2fs).", time.time() - start)
 
 
-def _seed_indexing_work(engine, procedure_ids: List[str]) -> int:
-    """Insert procedure IDs into indexing_work as pending. Returns count of new rows added."""
-    from sqlalchemy import text
-    stmt = text("""
-        INSERT INTO indexing_work (procedure_id, status)
-        VALUES (:pid, 'pending')
-        ON CONFLICT (procedure_id) DO NOTHING
-    """)
+def _seed_indexing_work(
+    engine,
+    procedure_ids: List[str],
+    force_reseed: bool = False,
+) -> int:
+    """
+    Insert procedure IDs into indexing_work as pending.
+
+    Args:
+        engine: SQLAlchemy engine
+        procedure_ids: Procedure IDs to insert
+        force_reseed: If True, reset existing rows to pending instead of skipping
+    """
+    if not procedure_ids:
+        logger.info("No procedure IDs provided for seeding.")
+        return 0
+
+    values = [(str(pid).strip(), "pending") for pid in procedure_ids if str(pid).strip()]
+    if not values:
+        return 0
+
+    total = len(values)
+    page_size = 10000
     added = 0
-    with engine.connect() as conn:
-        for pid in procedure_ids:
-            try:
-                result = conn.execute(stmt, {"pid": pid})
-                conn.commit()
-                if result.rowcount and result.rowcount > 0:
-                    added += 1
-            except Exception:
-                conn.rollback()
+    logger.info(
+        "Seeding indexing_work: total=%d force_reseed=%s page_size=%d",
+        total,
+        force_reseed,
+        page_size,
+    )
+    seed_start = time.time()
+
+    if force_reseed:
+        conflict_sql = """
+            INSERT INTO indexing_work (procedure_id, status) VALUES %s
+            ON CONFLICT (procedure_id) DO UPDATE SET
+                status = 'pending',
+                worker_id = NULL,
+                started_at = NULL,
+                completed_at = NULL,
+                error_message = NULL
+        """
+    else:
+        conflict_sql = """
+            INSERT INTO indexing_work (procedure_id, status)
+            VALUES %s
+            ON CONFLICT (procedure_id) DO NOTHING
+        """
+
+    with engine.raw_connection() as raw_conn:
+        try:
+            from psycopg2.extras import execute_values
+            cur = raw_conn.cursor()
+            for i in range(0, total, page_size):
+                chunk = values[i : i + page_size]
+                execute_values(
+                    cur,
+                    conflict_sql,
+                    chunk,
+                    page_size=page_size,
+                )
+                raw_conn.commit()
+                added += cur.rowcount or 0
+                if added % 5000 == 0 or added == total:
+                    logger.info("  Seeded %d / %d procedure IDs", added, total)
+        except Exception:
+            raw_conn.rollback()
+            raise
+        finally:
+            raw_conn.close()
+    logger.info("Completed seeding in %.2fs.", time.time() - seed_start)
     return added
 
 
@@ -92,6 +162,7 @@ def _truncate_and_seed(engine, procedure_ids: List[str]) -> int:
     """Truncate indexing_work and insert all procedure IDs. Returns total rows inserted."""
     from sqlalchemy import text
     with engine.connect() as conn:
+        logger.info("Truncating indexing_work before full reseed.")
         conn.execute(text("TRUNCATE TABLE indexing_work"))
         conn.commit()
     # Batch insert via psycopg2 execute_values (single INSERT with many VALUES)
@@ -123,6 +194,7 @@ def _truncate_and_seed(engine, procedure_ids: List[str]) -> int:
 def _claim_batch(engine, worker_id: str, batch_size: int) -> List[str]:
     """Claim a batch of pending procedures. Returns list of procedure_ids."""
     from sqlalchemy import text
+    logger.debug("Claiming up to %d pending procedures for worker=%s", batch_size, worker_id)
     with engine.connect() as conn:
         # Use FOR UPDATE SKIP LOCKED so multiple workers get different rows
         result = conn.execute(
@@ -143,12 +215,9 @@ def _claim_batch(engine, worker_id: str, batch_size: int) -> List[str]:
         )
         ids = [row[0] for row in result]
         conn.commit()
-        return ids
-
-
-def _mark_completed(engine, procedure_id: str) -> None:
-    """Mark a procedure as completed."""
-    _mark_completed_batch(engine, [procedure_id])
+    if ids:
+        logger.debug("Claimed %d procedures for worker=%s", len(ids), worker_id)
+    return ids
 
 
 @retry(
@@ -162,6 +231,7 @@ def _mark_completed_batch(engine, procedure_ids: List[str]) -> None:
     if not procedure_ids:
         return
     from sqlalchemy import text
+    logger.debug("Marking %d procedures as completed", len(procedure_ids))
     with engine.connect() as conn:
         conn.execute(
             text("""
@@ -191,6 +261,7 @@ def _mark_failed_batch(engine, procedure_ids: List[str], error_message: str) -> 
         return
     from sqlalchemy import text
     err = (error_message or "")[:1000]
+    logger.debug("Marking %d procedures as failed: %s", len(procedure_ids), err)
     with engine.connect() as conn:
         conn.execute(
             text("""
@@ -211,10 +282,52 @@ def _get_pending_count(engine) -> int:
         return result.scalar() or 0
 
 
+def _retry_failed_to_pending(
+    engine,
+    procedure_ids: Optional[Set[str]] = None,
+) -> int:
+    """Reset failed procedures back to pending so they are retried."""
+    from sqlalchemy import text
+    logger.info(
+        "Requeueing failed rows to pending%s",
+        f" for {len(procedure_ids)} scoped IDs" if procedure_ids else " (all failed)"
+    )
+    with engine.connect() as conn:
+        if procedure_ids:
+            result = conn.execute(
+                text("""
+                    UPDATE indexing_work
+                    SET status = 'pending',
+                        worker_id = NULL,
+                        started_at = NULL,
+                        completed_at = NULL,
+                        error_message = NULL
+                    WHERE status = 'failed'
+                    AND procedure_id = ANY(:procedure_ids)
+                """),
+                {"procedure_ids": list(procedure_ids)}
+            )
+        else:
+            result = conn.execute(
+                text("""
+                    UPDATE indexing_work
+                    SET status = 'pending',
+                        worker_id = NULL,
+                        started_at = NULL,
+                        completed_at = NULL,
+                        error_message = NULL
+                    WHERE status = 'failed'
+                """)
+            )
+        conn.commit()
+        return result.rowcount or 0
+
+
 def _reset_stuck(engine, older_than_minutes: int = 60) -> int:
     """Reset in_progress to pending for rows older than threshold (e.g. crashed workers)."""
     from sqlalchemy import text
     with engine.connect() as conn:
+        logger.debug("Checking for in_progress rows older than %d minutes", older_than_minutes)
         result = conn.execute(
             text("""
                 UPDATE indexing_work
@@ -236,7 +349,8 @@ class RepairGuideIndexer:
         embedding_config: Dict[str, Any],
         retrieval_config: Dict[str, Any],
         checkpoint_file: Optional[Path] = None,
-        batch_size: int = 100
+        batch_size: int = 100,
+        enable_checkpoint: bool = True,
     ):
         """
         Initialize repair guide indexer.
@@ -245,6 +359,7 @@ class RepairGuideIndexer:
             embedding_config: Embedding configuration dict
             retrieval_config: Retrieval configuration dict
             checkpoint_file: Path to checkpoint file for resume functionality
+            enable_checkpoint: Whether to load/save checkpoint state
             batch_size: Batch size for encoding and storage
         """
         self.embedding_config = embedding_config
@@ -256,8 +371,8 @@ class RepairGuideIndexer:
         logger.info("Initializing components...")
         self.ista_db = IstaDatabase()
         self.xml_fetcher = XmlContentFetcher()
-        self.encoder = self._init_encoder()
-        self.vector_store = VectorStore(retrieval_config["vector_store"])
+        self.encoder: Optional[FaultCodeEncoder] = None
+        self._vector_store: Optional[VectorStore] = None
         
         # Track progress
         self.indexed_ids: Set[str] = set()
@@ -265,8 +380,12 @@ class RepairGuideIndexer:
         self.error_count = 0
         self.start_time = time.time()
         
-        # Load checkpoint if exists
-        self._load_checkpoint()
+        self.enable_checkpoint = enable_checkpoint
+        if self.enable_checkpoint:
+            # Only local mode uses checkpoint for resume semantics; DB-mode uses indexing_work table.
+            self._load_checkpoint()
+        else:
+            logger.info("Checkpoint disabled for this run (DB-mode).")
         
         # Setup signal handler for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -276,6 +395,18 @@ class RepairGuideIndexer:
         # Chunking: ~1200 chars ≈ 300 tokens (encoder max 512)
         self.chunk_chars = 1200
         self.chunk_overlap = 200
+
+    def _ensure_encoder(self) -> FaultCodeEncoder:
+        """Lazily initialize the encoder only when indexing documents."""
+        if self.encoder is None:
+            self.encoder = self._init_encoder()
+        return self.encoder
+
+    def _ensure_vector_store(self) -> VectorStore:
+        """Lazily initialize the vector store only when storing documents."""
+        if self._vector_store is None:
+            self._vector_store = VectorStore(self.retrieval_config["vector_store"])
+        return self._vector_store
     
     def _init_encoder(self) -> FaultCodeEncoder:
         """Initialize fault code encoder from config."""
@@ -315,6 +446,8 @@ class RepairGuideIndexer:
     
     def _save_checkpoint(self) -> None:
         """Save checkpoint file with indexed procedure IDs."""
+        if not self.enable_checkpoint:
+            return
         try:
             self.checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
             checkpoint = {
@@ -333,56 +466,103 @@ class RepairGuideIndexer:
         logger.info("Shutdown signal received. Saving progress...")
         self.shutdown_requested = True
     
+    @staticmethod
+    def _normalize_title_text(value: Any) -> str:
+        """Normalize metadata titles by trimming and treating placeholders as empty."""
+        text = (str(value).strip() if value is not None else "")
+        return "" if text in {"", "-"} else text
+
+    def _normalize_procedure_title(self, procedure: Dict[str, Any]) -> str:
+        """Pick a usable display title, preferring TITLE_ENGB over fallback name."""
+        title = self._normalize_title_text(procedure.get("title_engb"))
+        if title:
+            return title
+        return self._normalize_title_text(procedure.get("name"))
+
     def _get_procedure_by_id(self, procedure_id: str) -> Optional[Dict[str, Any]]:
         """Get a single procedure by ID. Returns None if not found."""
         obj = self.ista_db.get_info_object(procedure_id)
         if not obj:
             return None
+        title = self._normalize_title_text(obj.get("TITLE_ENGB", ""))
+        name = self._normalize_title_text(obj.get("NAME", ""))
         return {
             "id": str(obj.get("ID", procedure_id)),
-            "title_engb": str(obj.get("TITLE_ENGB", "") or ""),
-            "name": str(obj.get("NAME", "") or ""),
+            "title_engb": title or name,
+            "name": name,
         }
 
-    def _get_all_procedures(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def _get_all_procedures(
+        self,
+        limit: Optional[int] = None,
+        issue_only: bool = False,
+        procedure_ids: Optional[Set[str]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Get all repair procedures from database.
         
         Args:
             limit: Optional limit on number of procedures to return
+            issue_only: If True, only include procedures with placeholder/missing titles
+            procedure_ids: Optional filter set of procedure IDs
         
         Returns:
             List of procedure dictionaries
         """
         try:
             from sqlalchemy import text
+            requested_ids = {str(pid).strip() for pid in (procedure_ids or set()) if str(pid).strip()}
+            effective_limit = limit if not requested_ids else None
+            logger.info(
+                "Loading procedures from ISTA (issue_only=%s, limit=%s, requested_ids=%d)",
+                issue_only,
+                effective_limit if effective_limit is not None else "none",
+                len(requested_ids),
+            )
             
             with self.ista_db.connection.session() as session:
                 
-                query = """
+                where_clauses = ["io.ID IS NOT NULL"]
+                if issue_only:
+                    where_clauses.append(
+                        "(io.TITLE_ENGB IS NULL OR TRIM(io.TITLE_ENGB) = '' OR TRIM(io.TITLE_ENGB) = '-')"
+                    )
+
+                query = f"""
                     SELECT DISTINCT io.ID, io.TITLE_ENGB, io.NAME
                     FROM XEP_INFOOBJECTS io
-                    WHERE io.ID IS NOT NULL
+                    WHERE {' AND '.join(where_clauses)}
                 """
                 
-                if limit:
-                    query += f" LIMIT {limit}"
+                if effective_limit:
+                    query += f" LIMIT {effective_limit}"
                 
+                query_start = time.time()
                 result = session.execute(text(query))
                 rows = result.fetchall()
+                logger.info("ISTA query returned %d rows in %.2fs", len(rows), time.time() - query_start)
                 
                 procedures = []
                 for row in rows:
                     proc_id = str(row.ID) if row.ID else None
                     if not proc_id:
                         continue
+                    if requested_ids and proc_id not in requested_ids:
+                        continue
+
+                    title = self._normalize_title_text(row.TITLE_ENGB)
+                    name = self._normalize_title_text(row.NAME)
                     
                     procedures.append({
                         "id": proc_id,
-                        "title_engb": str(row.TITLE_ENGB) if row.TITLE_ENGB else "",
-                        "name": str(row.NAME) if row.NAME else ""
+                        "title_engb": title or name,
+                        "name": name,
                     })
                 
+                if issue_only:
+                    logger.info("Filtered to %d placeholder-title procedures", len(procedures))
+                else:
+                    logger.info("Loaded %d procedures from ISTA", len(procedures))
                 return procedures
         except Exception as e:
             logger.error(f"Error querying procedures: {e}")
@@ -401,7 +581,7 @@ class RepairGuideIndexer:
             Combined text string (title + full content)
         """
         procedure_id = str(procedure["id"])
-        title = procedure.get("title_engb") or procedure.get("name", "") or ""
+        title = self._normalize_procedure_title(procedure)
         
         text_parts = [title] if title else []
         
@@ -447,8 +627,8 @@ class RepairGuideIndexer:
             
             fault_codes = self.ista_db.get_fault_codes_for_procedure(procedure_id)
             fault_labels = self.ista_db.get_fault_labels_for_procedure(procedure_id)
-            title = procedure.get("title_engb") or procedure.get("name", "")
-            name = procedure.get("name", "")
+            title = self._normalize_procedure_title(procedure)
+            name = self._normalize_title_text(procedure.get("name"))
 
             # Include DB fault codes and labels in text for semantic search
             # - Fault codes: align with query format
@@ -501,7 +681,8 @@ class RepairGuideIndexer:
         
         # Encode using FaultCodeEncoder (is_query=False for documents/passages)
         with torch.no_grad():
-            embeddings = self.encoder.encode(texts, normalize=True, is_query=False)
+            encoder = self._ensure_encoder()
+            embeddings = encoder.encode(texts, normalize=True, is_query=False)
         
         # Convert to numpy
         if isinstance(embeddings, torch.Tensor):
@@ -518,7 +699,7 @@ class RepairGuideIndexer:
             embeddings: numpy array of embeddings
         """
         try:
-            self.vector_store.add(embeddings, documents, batch_size=self.batch_size)
+            self._ensure_vector_store().add(embeddings, documents, batch_size=self.batch_size)
             
             # Track indexed procedure IDs (for resume; chunks share procedure_id)
             for doc in documents:
@@ -533,6 +714,8 @@ class RepairGuideIndexer:
         self,
         limit: Optional[int] = None,
         resume: bool = True,
+        issue_only: bool = False,
+        procedure_ids: Optional[Set[str]] = None,
         progress_interval: int = 100
     ) -> Dict[str, Any]:
         """
@@ -541,6 +724,8 @@ class RepairGuideIndexer:
         Args:
             limit: Optional limit on number of procedures to index
             resume: Whether to skip already-indexed procedures
+            issue_only: Only index procedures that likely have placeholder titles
+            procedure_ids: Optional explicit procedure IDs to index
             progress_interval: Log progress every N procedures
         
         Returns:
@@ -560,7 +745,11 @@ class RepairGuideIndexer:
                     logger.warning(f"Could not delete checkpoint file: {e}")
         
         # Get all procedures
-        procedures = self._get_all_procedures(limit=limit)
+        procedures = self._get_all_procedures(
+            limit=limit,
+            issue_only=issue_only,
+            procedure_ids=procedure_ids,
+        )
         total_procedures = len(procedures)
         
         logger.info(f"Found {total_procedures} procedures to process")
@@ -667,6 +856,10 @@ class RepairGuideIndexer:
         worker_id: str,
         seed: bool = False,
         seed_only: bool = False,
+        issue_only: bool = False,
+        procedure_ids: Optional[Set[str]] = None,
+        retry_failed: bool = False,
+        force_reseed: bool = False,
         reset_stuck_minutes: Optional[int] = None,
         progress_interval: int = 100,
     ) -> Dict[str, Any]:
@@ -678,6 +871,10 @@ class RepairGuideIndexer:
             worker_id: Unique identifier for this worker
             seed: If True, populate work queue from ISTA before indexing
             seed_only: If True, only seed and exit
+            issue_only: If True, only process procedure IDs with placeholder titles
+            procedure_ids: Optional explicit list of procedure IDs to process
+            retry_failed: If True, retry failed rows by moving them back to pending
+            force_reseed: If True, overwrite existing rows in indexing_work when seeding
             reset_stuck_minutes: If set, reset in_progress older than N min to pending
             progress_interval: Log progress every N procedures
 
@@ -685,21 +882,62 @@ class RepairGuideIndexer:
             Dictionary with indexing statistics
         """
         from sqlalchemy import create_engine
+        logger.info("Connecting to PostgreSQL indexing queue...")
         engine = create_engine(
             db_url,
             pool_pre_ping=True,  # Test connection before use (avoids stale SSL)
             pool_recycle=300,    # Recycle connections every 5 min (NeonDB idle timeout)
+            connect_args={"connect_timeout": 10},
         )
+        logger.info("PostgreSQL engine initialized.")
         _ensure_indexing_work_table(engine)
+        logger.info("PostgreSQL queue table is ready.")
+
+        scoped_procedure_ids = set(procedure_ids) if procedure_ids else None
+
+        if retry_failed:
+            logger.info(
+                "PostgreSQL step: retry_failed=%s (scope=%s)",
+                retry_failed,
+                "scoped" if scoped_procedure_ids else "all failed"
+            )
+            retried = _retry_failed_to_pending(engine, scoped_procedure_ids)
+            if retried:
+                logger.info("Requeued %d failed procedures for retry", retried)
+            elif scoped_procedure_ids:
+                logger.info("No matching failed procedures found to retry")
+            else:
+                logger.info("No failed rows were eligible for retry.")
 
         if seed or seed_only:
-            procedures = self._get_all_procedures()
-            procedure_ids = [p["id"] for p in procedures]
-            logger.info(f"Seeding indexing_work with {len(procedure_ids)} procedure IDs...")
-            added = _seed_indexing_work(engine, procedure_ids)
-            logger.info(f"Seeded {added} new procedures (existing skipped)")
+            logger.info(
+                "PostgreSQL step: seeding enabled (seed=%s, seed_only=%s, issue_only=%s, force_reseed=%s, scoped_ids=%d)",
+                seed,
+                seed_only,
+                issue_only,
+                force_reseed,
+                len(scoped_procedure_ids or set()),
+            )
+            procedures = self._get_all_procedures(
+                issue_only=issue_only,
+                procedure_ids=scoped_procedure_ids,
+            )
+            logger.info("Seed discovery returned %d procedure records.", len(procedures))
+            scoped_ids = [p["id"] for p in procedures]
+            logger.info(f"Seeding indexing_work with {len(scoped_ids)} procedure IDs...")
+            added = _seed_indexing_work(engine, scoped_ids, force_reseed=force_reseed)
+            if force_reseed:
+                logger.info(f"Seeded/reset {added} procedures (force-reseeded existing rows)")
+                logger.info("Force reseed is enabled; existing queue rows were reset to pending.")
+            else:
+                logger.info(f"Seeded {added} new procedures (existing skipped)")
+            if added == 0 and scoped_ids and not force_reseed:
+                logger.info(
+                    "Queue already contains these procedure IDs. If you want to reprocess existing rows, run with --retry-failed."
+                )
             if seed_only:
-                return {"seeded": added, "total": len(procedure_ids)}
+                logger.info("seed-only run returned %d seeded rows (skipped=%d).", added, len(scoped_ids) - added)
+                return {"seeded": added, "total": len(scoped_ids)}
 
         if reset_stuck_minutes is not None:
             reset = _reset_stuck(engine, reset_stuck_minutes)
@@ -719,12 +957,14 @@ class RepairGuideIndexer:
                 pending = _get_pending_count(engine)
                 if pending == 0:
                     # Auto-seed if queue is empty (no separate --seed step needed)
-                    procedures = self._get_all_procedures()
-                    procedure_ids = [p["id"] for p in procedures]
-                    added = _seed_indexing_work(engine, procedure_ids)
-                    if added > 0:
-                        logger.info("Auto-seeded %d procedures (queue was empty)", added)
-                        continue
+                    if not issue_only and scoped_procedure_ids is None:
+                        procedures = self._get_all_procedures()
+                        auto_ids = [p["id"] for p in procedures]
+                        added = _seed_indexing_work(engine, auto_ids)
+                        if added > 0:
+                            logger.info("Auto-seeded %d procedures (queue was empty)", added)
+                            continue
+
                     logger.info("No more work. All procedures indexed.")
                     break
                 logger.debug(f"No work claimed (others may be processing). Pending: {pending}. Retrying...")
@@ -798,6 +1038,11 @@ class RepairGuideIndexer:
         """Close database connections."""
         if hasattr(self, "xml_fetcher"):
             self.xml_fetcher.close()
+        if self._vector_store is not None and hasattr(self._vector_store, "close"):
+            try:
+                self._vector_store.close()
+            except Exception:
+                logger.debug("Failed to close vector store cleanly.", exc_info=True)
 
 
 def main():
@@ -858,6 +1103,34 @@ def main():
         help="Only populate work queue and exit (run once before starting workers)"
     )
     parser.add_argument(
+        "--only-placeholder-title",
+        action="store_true",
+        help="Index only guides with placeholder titles (TITLE_ENGB missing or '-')",
+    )
+    parser.add_argument(
+        "--procedure-id-file",
+        type=str,
+        default=None,
+        help="Path to a file with one procedure_id per line for targeted re-indexing",
+    )
+    parser.add_argument(
+        "--procedure-ids",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Explicit procedure IDs to re-index",
+    )
+    parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Requeue failed procedures and process them again",
+    )
+    parser.add_argument(
+        "--force-reseed",
+        action="store_true",
+        help="When seeding, overwrite existing queue rows and reset them to pending (use with --retry-failed and/or --only-placeholder-title)",
+    )
+    parser.add_argument(
         "--reset-stuck",
         type=int,
         metavar="MINUTES",
@@ -885,13 +1158,54 @@ def main():
     with open(paths.retrieval_config, 'r') as f:
         retrieval_config = yaml.safe_load(f)
 
+    requested_procedure_ids: Set[str] = set()
+    if args.procedure_ids:
+        requested_procedure_ids.update(
+            pid.strip() for pid in args.procedure_ids if pid and pid.strip()
+        )
+    if args.procedure_id_file:
+        proc_file = Path(args.procedure_id_file)
+        if proc_file.exists():
+            with open(proc_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    pid = line.strip()
+                    if pid:
+                        requested_procedure_ids.add(pid)
+        else:
+            logger.warning("procedure_id_file not found: %s", proc_file)
+
+    if args.force_reseed and not (args.seed or args.seed_only):
+        logger.warning("--force-reseed has no effect without --seed or --seed-only. Ignoring it for this run.")
+        args.force_reseed = False
+
+    if args.force_reseed and not (
+        args.retry_failed or args.only_placeholder_title or bool(requested_procedure_ids)
+    ):
+        logger.warning(
+            "--force-reseed is intended for targeted refreshes. "
+            "Set --retry-failed, --only-placeholder-title, or --procedure-ids/--procedure-id-file. "
+            "Ignoring --force-reseed for this run."
+        )
+        args.force_reseed = False
+
     # Initialize indexer
     checkpoint_file = Path(args.checkpoint_file) if args.checkpoint_file else None
+    logger.info(
+        "Request context: seed_only=%s retry_failed=%s only_placeholder_title=%s force_reseed=%s "
+        "procedure_ids=%d worker_id=%s",
+        args.seed_only,
+        args.retry_failed,
+        args.only_placeholder_title,
+        args.force_reseed,
+        len(requested_procedure_ids),
+        worker_id,
+    )
     indexer = RepairGuideIndexer(
         embedding_config=embedding_config,
         retrieval_config=retrieval_config,
         checkpoint_file=checkpoint_file,
-        batch_size=args.batch_size
+        batch_size=args.batch_size,
+        enable_checkpoint=not use_db,
     )
 
     try:
@@ -904,10 +1218,14 @@ def main():
                     db_url,
                     pool_pre_ping=True,
                     pool_recycle=300,
+                    connect_args={"connect_timeout": 10},
                 )
                 _ensure_indexing_work_table(engine)
                 logger.info("Fetching procedures from ISTA (this may take 1-3 min)...")
-                procedures = indexer._get_all_procedures()
+                procedures = indexer._get_all_procedures(
+                    issue_only=args.only_placeholder_title,
+                    procedure_ids=requested_procedure_ids or None,
+                )
                 procedure_ids = [p["id"] for p in procedures]
                 logger.info("Truncating and seeding %d procedures (this may take 5-15 min)...", len(procedure_ids))
                 inserted = _truncate_and_seed(engine, procedure_ids)
@@ -917,6 +1235,10 @@ def main():
                 worker_id=worker_id,
                 seed=args.seed,
                 seed_only=args.seed_only,
+                issue_only=args.only_placeholder_title,
+                procedure_ids=requested_procedure_ids or None,
+                retry_failed=args.retry_failed,
+                force_reseed=args.force_reseed,
                 reset_stuck_minutes=args.reset_stuck,
                 progress_interval=args.progress_interval,
             )
@@ -939,6 +1261,8 @@ def main():
             stats = indexer.index(
                 limit=args.limit,
                 resume=args.resume,
+                issue_only=args.only_placeholder_title,
+                procedure_ids=requested_procedure_ids or None,
                 progress_interval=args.progress_interval
             )
             print("\n" + "=" * 60)

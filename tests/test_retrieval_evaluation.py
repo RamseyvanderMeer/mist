@@ -8,6 +8,7 @@ Requires: DATABASE_URL (postgresql), CHROMA_DB_*, ISTA DB, knowledge graph.
 
 NOTE: Uses E5-Mistral-7B + cross-encoder — slow on CPU (~1-3 min/record).
 Use RETRIEVAL_EVAL_SAMPLE_SIZE=2 for a quick 2-record test.
+Use RETRIEVAL_EVAL_DB_CANDIDATE_POOL (default 5000) to control DB prefetch size.
 
 Run:
   PYTHONPATH=. python -m pytest tests/test_retrieval_evaluation.py -v -s
@@ -55,10 +56,20 @@ def _fetch_eval_records(
     """
     Fetch records from scraped_records with matched_guide_id (ground truth).
     Randomly samples up to sample_size records.
+
+    Uses a capped candidate window instead of ORDER BY RANDOM() for better startup performance.
     """
     from sqlalchemy import create_engine, text
 
     engine = create_engine(db_url)
+    try:
+        candidate_limit = int(os.environ.get("RETRIEVAL_EVAL_DB_CANDIDATE_POOL", "5000"))
+    except ValueError:
+        candidate_limit = 5000
+    if candidate_limit <= 0:
+        candidate_limit = 5000
+    if candidate_limit < sample_size:
+        candidate_limit = sample_size * 4
     with engine.connect() as conn:
         result = conn.execute(
             text("""
@@ -69,9 +80,9 @@ def _fetch_eval_records(
                   AND (repair_summary IS NOT NULL AND repair_summary != ''
                        OR symptoms IS NOT NULL AND symptoms != '')
                   AND fault_codes IS NOT NULL AND fault_codes != '[]' AND fault_codes != '{}'
-                ORDER BY RANDOM()
-                LIMIT 500
-            """)
+                LIMIT :candidate_limit
+            """),
+            {"candidate_limit": candidate_limit},
         )
         rows = list(result.fetchall())
         cols = result.keys()
