@@ -1,10 +1,14 @@
 name: Deploy MIST API to Cloud Run
 
+# NOTE: This workflow triggers on every push to main.
+# To avoid Cloud Build costs, work on feature branches and only merge to main when ready to deploy.
+# Feature branch pattern: git checkout -b feature/my-feature
+
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  # pull_request triggers removed to avoid duplicate builds
+  # Only deploy on merge to main, not on PR creation/update
 
 env:
   PROJECT_ID: mist-487607
