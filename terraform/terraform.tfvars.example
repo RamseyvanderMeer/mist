@@ -1,0 +1,14 @@
+# Example Terraform variables file
+# Copy to terraform.tfvars (gitignored) and fill in real values.
+# Do not commit terraform.tfvars.
+
+project_id       = "your-gcp-project-id"
+region           = "us-west1"
+service_name     = "mist-api"
+container_image  = "gcr.io/your-gcp-project-id/mist-api:latest"
+
+# Stored in Google Secret Manager by Terraform — use real values locally only.
+database_url       = "postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
+sambanova_api_key  = "your-sambanova-api-key"
+chromadb_api_key   = "your-chromadb-cloud-api-key"
+chromadb_tenant    = "your-chromadb-tenant-id"
