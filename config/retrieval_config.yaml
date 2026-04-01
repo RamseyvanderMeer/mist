@@ -18,7 +18,7 @@ retrieval:
   initial_k: 100  # Initial candidates from vector search (Stage 1)
   rerank_k: 50  # Candidates after re-ranking (Stage 2)
   final_k: 10  # Final number of recommendations returned (Stage 4)
-  min_similarity: 0.05  # Minimum cosine similarity threshold for initial retrieval (lowered for better recall)
+  min_similarity: 0.5  # Minimum cosine similarity threshold for initial retrieval (lowered for better recall)
 
 reranking:
   enabled: false  # Disable reranking to test vector search only
