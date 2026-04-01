@@ -32,8 +32,12 @@ jobs:
 
     - name: Build and Push Container
       run: |
-        gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
-        gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest .
+        gcloud builds submit --async --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+        # Wait for build to complete
+        echo "Waiting for build to complete..."
+        sleep 30
+        # Tag as latest
+        gcloud container images add-tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest --quiet
 
     - name: Deploy to Cloud Run
       id: deploy
