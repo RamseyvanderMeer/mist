@@ -113,11 +113,40 @@ class XmlContentFetcher:
             return None
 
     def _strip_xml(self, xml: str) -> str:
-        """Remove XML tags and normalize whitespace."""
-        text = re.sub(r"<[^>]+>", " ", xml)
-        text = re.sub(r"\s+", " ", text).strip()
+        """Remove XML tags, CSS, JavaScript, and normalize whitespace."""
+        text = xml
+        
+        # Remove CSS blocks (everything between { and })
+        text = re.sub(r"\{[^}]*\}", " ", text)
+        
+        # Remove JavaScript function definitions
+        text = re.sub(r"function\s+\w+\s*\([^)]*\)\s*\{[^}]*\}", " ", text, flags=re.DOTALL)
+        text = re.sub(r"var\s+\w+\s*=\s*[^;]+;", " ", text)
+        text = re.sub(r"if\s*\([^)]+\)\s*\{[^}]*\}", " ", text, flags=re.DOTALL)
+        text = re.sub(r"return\s+[^;]+;", " ", text)
+        
+        # Remove @media rules
+        text = re.sub(r"@media\s+[^\{]+\{[^}]*\}", " ", text, flags=re.DOTALL)
+        
+        # Remove CSS class definitions (e.g., .standard_black)
+        text = re.sub(r"\.[a-zA-Z_-][a-zA-Z0-9_-]*\s*\{[^}]*\}", " ", text)
+        
+        # Remove XML tags
+        text = re.sub(r"<[^>]+>", " ", text)
+        
+        # Remove HTML entities
         text = re.sub(r"&[a-zA-Z]+;", " ", text)
-        return re.sub(r"\s+", " ", text).strip()
+        
+        # Remove backslash escapes (common in the XML)
+        text = re.sub(r"\\x3c", "<", text)
+        text = re.sub(r"\\x3e", ">", text)
+        text = re.sub(r"\\x3d", "=", text)
+        text = re.sub(r"\\", "", text)
+        
+        # Normalize whitespace
+        text = re.sub(r"\s+", " ", text).strip()
+        
+        return text
 
     def extract_problem_solution_sections(self, raw_xml: str) -> str:
         """

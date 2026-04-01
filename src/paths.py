@@ -54,8 +54,12 @@ class Paths:
         """
         env_path = os.getenv("MIST_CONFIG_DIR")
         if env_path:
-            return Path(env_path).resolve()
-        return self.mist_root / "config"
+            path = Path(env_path).resolve()
+            logger.info(f"Using config dir from env: {path}")
+            return path
+        path = self.mist_root / "config"
+        logger.info(f"Using default config dir: {path}")
+        return path
     
     @property
     def data(self) -> Path:
