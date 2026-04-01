@@ -1,0 +1,20 @@
+# Dockerfile for repair guide indexer
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN pip install --no-cache-dir \
+    openai \
+    chromadb \
+    numpy \
+    tqdm \
+    pyyaml
+
+# Copy source
+COPY src/ ./src/
+COPY scripts/reindex_qwen3.py ./
+COPY data/databases/ ./data/databases/
+
+# Run indexer
+CMD ["python", "reindex_qwen3.py", "--batch-size", "50"]
