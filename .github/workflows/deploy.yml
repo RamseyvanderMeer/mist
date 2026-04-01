@@ -34,9 +34,24 @@ jobs:
 
     - name: Build and Push Container
       run: |
-        # Build without streaming logs (avoids permission issues)
-        gcloud builds submit --suppress-logs --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest .
-        echo "Build completed successfully"
+        # Start async build
+        BUILD_ID=$(gcloud builds submit --async --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest . --format='value(id)')
+        echo "Started build: $BUILD_ID"
+        
+        # Poll for build completion
+        echo "Waiting for build to complete..."
+        for i in {1..60}; do
+          STATUS=$(gcloud builds describe $BUILD_ID --format='value(status)')
+          echo "Build status: $STATUS"
+          if [ "$STATUS" = "SUCCESS" ]; then
+            echo "Build completed successfully!"
+            break
+          elif [ "$STATUS" = "FAILURE" ] || [ "$STATUS" = "CANCELLED" ] || [ "$STATUS" = "EXPIRED" ]; then
+            echo "Build failed with status: $STATUS"
+            exit 1
+          fi
+          sleep 10
+        done
 
     - name: Deploy to Cloud Run
       id: deploy
