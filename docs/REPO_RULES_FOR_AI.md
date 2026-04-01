@@ -60,6 +60,7 @@ Read this **together with** [SPEC.md](SPEC.md), [agent.md](agent.md), and [ARCHI
 
 ## 6. Safety & high-risk areas
 
+- **`.pi/`** — Pi editor extensions are **local-only** (directory is gitignored); do not add them to this repo.
 - **Secrets** — never commit real API keys, `DATABASE_URL` values, or `terraform.tfvars`. Use env vars, Secret Manager, and the tracked `terraform.tfvars.example` / placeholder `k8s/secrets.yaml`. If credentials ever landed in git history, **rotate them** in the provider; removing files from the current tree does not erase past commits.
 - **`terraform/`** — infra and secrets; do not casually rewrite production bindings.
 - **Indexing / migration scripts** — can overwrite or corrupt local indices; understand flags before running.
