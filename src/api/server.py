@@ -1,8 +1,13 @@
 """
 FastAPI server for MIST API endpoints.
 """
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+import redis
 from .schemas import (
     QueryRequest, QueryResponse, ClarifyRequest, RatingFeedback,
     RepairOutcomeFeedback, ConversationCorrection, FeedbackStatistics
@@ -10,22 +15,112 @@ from .schemas import (
 from src.retrieval.conversational_rag import ConversationalRAG, ConversationalRAGError
 from src.feedback.collector import FeedbackCollector
 from src.feedback.analyzer import FeedbackAnalyzer
+from src.api.security import setup_security
+from src.auth.dependencies import (
+    get_current_user, get_current_user_optional, get_tier_rate_limit,
+    require_admin, limiter as auth_limiter
+)
+from src.auth.routes import router as auth_router
+from src.database.pg_connection import get_db, pg_engine
+from src.database.init import init_db
+from src.models import Base
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 import logging
+import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="MIST API", version="0.1.0")
+# Initialize rate limiter state
+limiter = auth_limiter
 
-# CORS middleware
+def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    """Custom handler for rate limit exceeded."""
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={
+            "detail": "Rate limit exceeded. Please upgrade your plan or try again later.",
+            "retry_after": exc.detail if hasattr(exc, 'detail') else None
+        }
+    )
+
+app = FastAPI(
+    title="MIST API",
+    description="""
+    **MIST (Mechanic Intelligence Support Tool) API** provides intelligent repair guide recommendations 
+    for BMW vehicles based on fault codes and symptom descriptions.
+    
+    ## Authentication
+    
+    This API uses Google Cloud IAP for authentication. All requests must include valid IAP headers.
+    
+    ### Required Headers
+    - `X-Goog-Authenticated-User-Email`: User's email from Google authentication
+    - `X-Goog-Authenticated-User-Id`: User's subject ID from Google authentication
+    
+    ### Registration Flow
+    1. First-time users must call `POST /auth/register` to create an account
+    2. Subsequent requests use IAP headers for automatic authentication
+    3. New users are assigned the "blocked" tier by default (no API access)
+    4. Contact an admin to upgrade your tier
+    
+    ## Rate Limiting
+    
+    Rate limits are tier-based:
+    - **blocked**: 0 requests (default for new users)
+    - **free**: 10/min, 100/hour, 500/day
+    - **premium**: 100/min, 1000/hour, 5000/day
+    - **admin**: 1000/min, 10000/hour, 100000/day
+    
+    ## Key Features
+    
+    - **Fault Code Search**: Query by OBD-II fault codes (e.g., P0301, 2A87)
+    - **Symptom Search**: Describe problems in natural language
+    - **Clarification Flow**: Interactive questioning when diagnosis is ambiguous
+    - **Feedback Loop**: Submit ratings and outcomes to improve recommendations
+    
+    ## Typical Usage Flow
+    
+    1. **Register**: Call `/auth/register` (first time only)
+    2. **Submit Query**: Send fault codes and/or symptoms to `/query`
+    3. **Review Recommendations**: Get ranked repair guide recommendations
+    4. **Clarify (if needed)**: If `needs_clarification=true`, answer questions via `/clarify`
+    5. **Submit Feedback**: Rate recommendations and report repair outcomes
+    """,
+    version="0.2.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    contact={
+        "name": "MIST Support",
+        "email": "support@mist.ai"
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT"
+    }
+)
+
+# Add rate limiter to app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
+
+# CORS middleware - restrict in production
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+# Include auth routes
+app.include_router(auth_router)
+
+# Setup security (rate limiting, API key validation)
+api_keys = os.getenv("API_KEYS", "").split(",") if os.getenv("API_KEYS") else None
+setup_security(app, api_keys=api_keys)
 
 # Global instances for lazy initialization
 _conversational_rag: Optional[ConversationalRAG] = None
@@ -84,31 +179,141 @@ def get_feedback_analyzer() -> FeedbackAnalyzer:
     return _feedback_analyzer
 
 
-@app.get("/health")
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database tables and seed data on startup."""
+    try:
+        # Create tables
+        Base.metadata.create_all(bind=pg_engine)
+        
+        # Seed default data
+        from sqlalchemy.orm import Session
+        with Session(pg_engine) as db:
+            init_db(db)
+        
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+
+
+@app.get("/health", tags=["Health"], summary="Health Check")
 async def health_check():
-    """Health check endpoint"""
+    """
+    Check if the API service is running and healthy.
+    
+    Returns:
+        Service status and name
+        
+    Example Response:
+        ```json
+        {
+            "status": "healthy",
+            "service": "MIST API"
+        }
+        ```
+    """
     return {"status": "healthy", "service": "MIST API"}
 
 
-@app.post("/query", response_model=QueryResponse)
+@app.post(
+    "/query",
+    response_model=QueryResponse,
+    tags=["Query"],
+    summary="Query Repair Guides",
+    responses={
+        400: {"description": "Bad Request - No fault codes or description provided"},
+        401: {"description": "Unauthorized - Authentication required"},
+        403: {"description": "Forbidden - User not registered or tier blocked"},
+        429: {"description": "Rate Limit Exceeded"},
+        500: {"description": "Internal Server Error - Query processing failed"}
+    }
+)
+@limiter.limit(lambda user: get_tier_rate_limit(user) if hasattr(user, 'tier') else "0/minute")
 async def query(
-    request: QueryRequest,
-    rag: ConversationalRAG = Depends(get_conversational_rag)
+    request: Request,
+    query_request: QueryRequest,
+    rag: ConversationalRAG = Depends(get_conversational_rag),
+    current_user = Depends(get_current_user)
 ):
-    """Process fault codes and OBD data"""
+    """
+    Query repair guides by fault codes and/or symptom description.
+
+    This endpoint performs semantic search across 337,000+ BMW repair guides to find
+    the most relevant procedures for the given fault codes or symptoms.
+
+    ## Search Types
+
+    **1. Fault Code Search:**
+    - Provide OBD-II codes (e.g., P0301, B002A) or BMW hex codes (e.g., 29CC, 2A87)
+    - The API automatically converts between formats
+
+    **2. Symptom Search:**
+    - Describe problems in natural language (e.g., "engine misfire", "rough idle")
+    - Symptom expansion automatically adds related terms
+
+    **3. Combined Search:**
+    - Use both fault codes AND description for best results
+
+    ## Response Fields
+
+    - **recommendations**: List of repair guides ranked by relevance (0-1 score)
+    - **needs_clarification**: If true, answer questions via `/clarify` endpoint
+    - **clarification_questions**: Questions to narrow down diagnosis
+    - **session_id**: Save this to continue conversation via `/clarify`
+    - **query_text**: The expanded query used for search
+
+    ## Example Request
+
+    ```json
+    {
+        "fault_codes": ["P0301"],
+        "description": "engine misfire cylinder 1",
+        "vehicle_context": {"model": "BMW 3-Series", "year": 2019}
+    }
+    ```
+
+    ## Example Response
+
+    ```json
+    {
+        "recommendations": [
+            {
+                "id": "2000014950753",
+                "title": "Measure for fault 290900",
+                "procedure_name": "Measure for fault 290900",
+                "procedure_id": "2000014950753",
+                "score": 0.306,
+                "text": "Problem/Solution: sporadic fault in the ignition system..."
+            }
+        ],
+        "needs_clarification": false,
+        "clarification_questions": null,
+        "session_id": "abc-123-def",
+        "query_text": "Fault codes: P0301, 29CC. Problem: engine misfire..."
+    }
+    ```
+    """
+    # Validate that at least one search criterion is provided
+    if not query_request.fault_codes and not query_request.description:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one of 'fault_codes' or 'description' must be provided"
+        )
+    
     try:
         logger.info(
-            f"Processing query: {len(request.fault_codes)} fault codes, "
-            f"session_id={request.session_id}"
+            f"Processing query for user {current_user.email}: "
+            f"{len(query_request.fault_codes)} fault codes, "
+            f"session_id={query_request.session_id}"
         )
         
         # Call ConversationalRAG.query()
         result = rag.query(
-            fault_codes=request.fault_codes,
-            obd_data=request.obd_data or {},
-            description=request.description,
-            vehicle_context=request.vehicle_context,
-            session_id=request.session_id
+            fault_codes=query_request.fault_codes,
+            obd_data=query_request.obd_data or {},
+            description=query_request.description,
+            vehicle_context=query_request.vehicle_context,
+            session_id=query_request.session_id
         )
         
         # Convert response dict to QueryResponse schema
@@ -141,22 +346,67 @@ async def query(
         )
 
 
-@app.post("/clarify", response_model=QueryResponse)
+@app.post(
+    "/clarify",
+    response_model=QueryResponse,
+    tags=["Query"],
+    summary="Submit Clarification Responses",
+    responses={
+        401: {"description": "Unauthorized - Authentication required"},
+        403: {"description": "Forbidden - User not registered or tier blocked"},
+        404: {"description": "Session not found"},
+        429: {"description": "Rate Limit Exceeded"},
+        500: {"description": "Processing error"}
+    }
+)
+@limiter.limit(lambda user: get_tier_rate_limit(user) if hasattr(user, 'tier') else "0/minute")
 async def clarify(
-    request: ClarifyRequest,
-    rag: ConversationalRAG = Depends(get_conversational_rag)
+    request: Request,
+    clarify_request: ClarifyRequest,
+    rag: ConversationalRAG = Depends(get_conversational_rag),
+    current_user = Depends(get_current_user)
 ):
-    """Process clarification responses"""
+    """
+    Submit responses to clarification questions from a previous query.
+
+    Use this endpoint when `needs_clarification=true` in the `/query` response.
+    The session_id from the query response must be provided.
+
+    ## When to Use
+
+    1. Call `/query` with fault codes/description
+    2. If response has `needs_clarification: true`, display the questions to the user
+    3. Collect user answers
+    4. Call `/clarify` with the same session_id and user responses
+    5. Get refined recommendations
+
+    ## Example Request
+
+    ```json
+    {
+        "session_id": "abc-123-def",
+        "responses": [
+            "The engine shakes at idle",
+            "Check engine light is on"
+        ]
+    }
+    ```
+
+    ## Example Response
+
+    Same format as `/query` endpoint, with refined recommendations based on clarifications.
+    """
     try:
         logger.info(
-            f"Processing clarification: session_id={request.session_id}, "
-            f"{len(request.responses)} responses"
+            f"Processing clarification for user {current_user.email}: "
+            f"session_id={clarify_request.session_id}, "
+            f"{len(clarify_request.responses)} responses"
         )
         
         # Call ConversationalRAG.clarify()
         result = rag.clarify(
-            session_id=request.session_id,
-            responses=request.responses
+            session_id=clarify_request.session_id,
+            responses=clarify_request.responses
         )
         
         # Convert response dict to QueryResponse schema
@@ -182,7 +432,7 @@ async def clarify(
             logger.warning(f"Session not found in clarify endpoint: {e}")
             raise HTTPException(
                 status_code=404,
-                detail=f"Session not found: {request.session_id}"
+                detail=f"Session not found: {clarify_request.session_id}"
             )
         else:
             logger.error(f"ConversationalRAG error in clarify endpoint: {e}")
@@ -198,16 +448,53 @@ async def clarify(
         )
 
 
-@app.post("/feedback/rating")
+@app.post(
+    "/feedback/rating",
+    tags=["Feedback"],
+    summary="Submit Rating Feedback",
+    responses={
+        200: {"description": "Rating recorded successfully"},
+        400: {"description": "Invalid rating value"},
+        401: {"description": "Unauthorized - Authentication required"},
+        404: {"description": "Session not found"}
+    }
+)
 async def submit_rating(
     feedback: RatingFeedback,
-    collector: FeedbackCollector = Depends(get_feedback_collector)
+    collector: FeedbackCollector = Depends(get_feedback_collector),
+    current_user = Depends(get_current_user)
 ):
-    """Submit rating feedback"""
+    """
+    Submit a rating (1-5) for the recommendations provided in a session.
+
+    This feedback helps improve future recommendations by tracking which
+    suggestions were most helpful to users.
+
+    ## When to Use
+
+    After the user has reviewed the recommendations and selected one,
+    submit their satisfaction rating.
+
+    ## Example Request
+
+    ```json
+    {
+        "session_id": "abc-123-def",
+        "rating": 4,
+        "selected_guide": "2000014950753"
+    }
+    ```
+
+    ## Parameters
+
+    - **session_id**: The session ID from the query/clarify response
+    - **rating**: Integer from 1 (poor) to 5 (excellent)
+    - **selected_guide** (optional): ID of the guide the user selected
+    """
     try:
         logger.info(
-            f"Submitting rating feedback: session_id={feedback.session_id}, "
-            f"rating={feedback.rating}"
+            f"Submitting rating feedback from user {current_user.email}: "
+            f"session_id={feedback.session_id}, rating={feedback.rating}"
         )
         
         # Update session with rating and selected guide
@@ -249,16 +536,60 @@ async def submit_rating(
         )
 
 
-@app.post("/feedback/outcome")
+@app.post(
+    "/feedback/outcome",
+    tags=["Feedback"],
+    summary="Submit Repair Outcome",
+    responses={
+        200: {"description": "Outcome recorded successfully"},
+        400: {"description": "Invalid outcome value"},
+        401: {"description": "Unauthorized - Authentication required"},
+        404: {"description": "Session not found"}
+    }
+)
 async def submit_outcome(
     feedback: RepairOutcomeFeedback,
-    collector: FeedbackCollector = Depends(get_feedback_collector)
+    collector: FeedbackCollector = Depends(get_feedback_collector),
+    current_user = Depends(get_current_user)
 ):
-    """Submit repair outcome feedback"""
+    """
+    Submit the outcome of the repair attempt (success, failure, or partial).
+
+    This feedback tracks whether the recommended procedure actually fixed
+    the problem, helping improve future recommendation accuracy.
+
+    ## When to Use
+
+    After the repair has been attempted, report whether it was successful.
+
+    ## Example Request
+
+    ```json
+    {
+        "session_id": "abc-123-def",
+        "outcome": "success",
+        "details": {
+            "notes": "Replaced spark plugs, misfire resolved"
+        }
+    }
+    ```
+
+    ## Outcome Values
+
+    - **success**: The repair completely fixed the problem
+    - **failure**: The repair did not fix the problem
+    - **partial**: The repair helped but didn't fully resolve the issue
+
+    ## Parameters
+
+    - **session_id**: The session ID from the query/clarify response
+    - **outcome**: One of "success", "failure", or "partial"
+    - **details** (optional): Additional information about the outcome
+    """
     try:
         logger.info(
-            f"Submitting outcome feedback: session_id={feedback.session_id}, "
-            f"outcome={feedback.outcome}"
+            f"Submitting outcome feedback from user {current_user.email}: "
+            f"session_id={feedback.session_id}, outcome={feedback.outcome}"
         )
         
         # Update session with repair outcome
@@ -299,15 +630,60 @@ async def submit_outcome(
         )
 
 
-@app.post("/feedback/correction")
+@app.post(
+    "/feedback/correction",
+    tags=["Feedback"],
+    summary="Submit Conversation Correction",
+    responses={
+        200: {"description": "Correction recorded successfully"},
+        401: {"description": "Unauthorized - Authentication required"},
+        404: {"description": "Session not found"}
+    }
+)
 async def submit_correction(
     feedback: ConversationCorrection,
-    collector: FeedbackCollector = Depends(get_feedback_collector)
+    collector: FeedbackCollector = Depends(get_feedback_collector),
+    current_user = Depends(get_current_user)
 ):
-    """Submit conversation correction"""
+    """
+    Submit a correction to the conversation or recommendations.
+
+    Use this endpoint when the recommended procedures were incorrect
+    and you want to provide feedback about what the correct approach should be.
+
+    ## When to Use
+
+    When the repair failed and you want to document what the actual
+    correct procedure was for future improvement.
+
+    ## Example Request
+
+    ```json
+    {
+        "session_id": "abc-123-def",
+        "correction": {
+            "issue": "Wrong procedure recommended",
+            "actual_fault": "Ignition coil failure",
+            "correct_procedure": "Replace ignition coil",
+            "notes": "The misfire was caused by faulty ignition coil, not spark plugs"
+        }
+    }
+    ```
+
+    ## Parameters
+
+    - **session_id**: The session ID from the query/clarify response
+    - **correction**: A dictionary containing correction information.
+      Can include any relevant fields such as:
+      - issue: Description of what was wrong
+      - actual_fault: The actual problem found
+      - correct_procedure: What should have been recommended
+      - notes: Any additional context
+    """
     try:
         logger.info(
-            f"Submitting correction feedback: session_id={feedback.session_id}"
+            f"Submitting correction feedback from user {current_user.email}: "
+            f"session_id={feedback.session_id}"
         )
         
         # Get existing session to preserve conversation_corrections
@@ -353,12 +729,53 @@ async def submit_correction(
         )
 
 
-@app.get("/feedback/statistics", response_model=FeedbackStatistics)
+@app.get(
+    "/feedback/statistics",
+    response_model=FeedbackStatistics,
+    tags=["Feedback"],
+    summary="Get Feedback Statistics",
+    responses={
+        401: {"description": "Unauthorized - Authentication required"},
+        403: {"description": "Forbidden - Admin access required"}
+    }
+)
 async def get_statistics(
     analyzer: FeedbackAnalyzer = Depends(get_feedback_analyzer),
-    collector: FeedbackCollector = Depends(get_feedback_collector)
+    collector: FeedbackCollector = Depends(get_feedback_collector),
+    admin_user = Depends(require_admin)
 ):
-    """Get feedback statistics"""
+    """
+    Get aggregate statistics about feedback submissions.
+
+    Returns summary metrics about user ratings, repair outcomes,
+    and overall system performance.
+
+    ## Response Fields
+
+    - **total_sessions**: Total number of diagnostic sessions
+    - **rated_sessions**: Number of sessions with explicit ratings
+    - **average_rating**: Average rating across all rated sessions (0-5)
+    - **repair_outcomes**: Count of success/failure/partial outcomes
+    - **corrected_sessions**: Number of sessions with user corrections
+    - **rating_coverage**: Percentage of sessions that received ratings
+
+    ## Example Response
+
+    ```json
+    {
+        "total_sessions": 150,
+        "rated_sessions": 120,
+        "average_rating": 4.2,
+        "repair_outcomes": {
+            "success": 85,
+            "failure": 20,
+            "partial": 15
+        },
+        "corrected_sessions": 10,
+        "rating_coverage": 0.8
+    }
+    ```
+    """
     try:
         logger.info("Retrieving feedback statistics")
         
@@ -406,12 +823,54 @@ async def get_statistics(
         )
 
 
-@app.get("/feedback/{session_id}")
+@app.get(
+    "/feedback/{session_id}",
+    tags=["Feedback"],
+    summary="Get Session Feedback",
+    responses={
+        200: {"description": "Session feedback data"},
+        401: {"description": "Unauthorized - Authentication required"},
+        403: {"description": "Forbidden - Admin access required"},
+        404: {"description": "Session not found"}
+    }
+)
 async def get_feedback_session(
     session_id: str,
-    collector: FeedbackCollector = Depends(get_feedback_collector)
+    collector: FeedbackCollector = Depends(get_feedback_collector),
+    admin_user = Depends(require_admin)
 ):
-    """Get feedback session by ID"""
+    """
+    Retrieve all feedback data for a specific session.
+
+    Returns the complete feedback record including ratings,
+    outcomes, and corrections submitted for this session.
+
+    ## Parameters
+
+    - **session_id**: The session ID from query/clarify response
+
+    ## Response Fields
+
+    - **session_id**: Session identifier
+    - **fault_codes**: Fault codes from the query
+    - **explicit_rating**: User rating (1-5) if submitted
+    - **repair_outcome**: Outcome (success/failure/partial) if submitted
+    - **conversation_corrections**: List of corrections if any
+    - **timestamp**: When the session was created
+
+    ## Example Response
+
+    ```json
+    {
+        "session_id": "abc-123-def",
+        "fault_codes": ["P0301"],
+        "explicit_rating": 4,
+        "repair_outcome": "success",
+        "conversation_corrections": null,
+        "timestamp": "2026-03-31T06:57:15.693842"
+    }
+    ```
+    """
     try:
         logger.info(f"Retrieving feedback session: {session_id}")
         
