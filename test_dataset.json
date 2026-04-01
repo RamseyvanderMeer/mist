@@ -1,0 +1,1048 @@
+{
+  "metadata": {
+    "created": "2024-01-01",
+    "total_records": 30,
+    "description": "MIST fault code matching test dataset",
+    "source": "Neon PostgreSQL scraped_records table"
+  },
+  "records": [
+    {
+      "id": 4651,
+      "fault_codes": [
+        "P0102"
+      ],
+      "query_text_symptom": "Fault codes: P0102. Problem: MAF sensor problems, 5 incomplete readiness monitors (O2, CAT, EVAP, SEC AIR), no MAF readings from scan tool",
+      "query_text_solution": "Fix: Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked.",
+      "ground_truth": {
+        "guide_id": "2000013310440",
+        "guide_title": "Diesel engine: unable to delete fault memory.",
+        "repair_text": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.9,
+        "confidence_score": 1.0,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-740il-maf-problems.761526/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "MAF sensor problems, 5 incomplete readiness monitors (O2, CAT, EVAP, SEC AIR), no MAF readings from scan tool",
+        "obd_data": "{\"coolant_temp\": 100.0, \"intake_air_temp\": 100.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2001\", \"model\": \"740il\"}",
+        "repair_summary": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked.",
+        "repair_guide": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked."
+      }
+    },
+    {
+      "id": 2029,
+      "fault_codes": [
+        "P0171",
+        "P0173",
+        "P0440",
+        "P0442",
+        "P1250"
+      ],
+      "query_text_symptom": "Fault codes: P0171, P0173, P0440, P0442, P1250",
+      "query_text_solution": "Fix: reset a number of times and they didn't come back on.  I've had 6 bmws.",
+      "ground_truth": {
+        "guide_id": "2000008888184",
+        "guide_title": "Check fresh air flap motor, integrated automatic heating and air-conditioning system in High + Basic version.",
+        "repair_text": "reset a number of times and they didn't come back on.  I've had 6 bmws."
+      },
+      "evaluation": {
+        "num_fault_codes": 5,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.75,
+        "confidence_score": 0.75,
+        "test_category": "multi_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/%E2%80%9Cservice-engine-soon%E2%80%9D-light-and-inspection-1-%E2%80%93-help.341989/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2006, \"mileage\": 500}",
+        "repair_summary": "reset a number of times and they didn't come back on.  I've had 6 bmws.",
+        "repair_guide": "reset a number of times and they didn't come back on.  I've had 6 bmws."
+      }
+    },
+    {
+      "id": 9140,
+      "fault_codes": [
+        "P1159",
+        "P1161"
+      ],
+      "query_text_symptom": "Fault codes: P1159, P1161",
+      "query_text_solution": "Fix: replaced upper timing cover and valve cover gaskets on my 2001 740i sport.  I had to do the passenger side valve cover again since i noticed that i pinched the gasket and was leaking oil.",
+      "ground_truth": {
+        "guide_id": "2000015586196",
+        "guide_title": "Removing and installing the intake plenum.",
+        "repair_text": "replaced upper timing cover and valve cover gaskets on my 2001 740i sport.  I had to do the passenger side valve cover again since i noticed that i pinched the gasket and was leaking oil."
+      },
+      "evaluation": {
+        "num_fault_codes": 2,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.85,
+        "confidence_score": 0.85,
+        "test_category": "multi_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-740i-battery-light-on.522854/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{\"engine_rpm\": 1500.0, \"fuel_trim_bank1\": 62.0, \"fuel_trim_bank2\": 62.0, \"throttle_position\": 62.0}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2001, \"mileage\": 10}",
+        "repair_summary": "replaced upper timing cover and valve cover gaskets on my 2001 740i sport.  I had to do the passenger side valve cover again since i noticed that i pinched the gasket and was leaking oil.",
+        "repair_guide": "replaced upper timing cover and valve cover gaskets on my 2001 740i sport.  I had to do the passenger side valve cover again since i noticed that i pinched the gasket and was leaking oil."
+      }
+    },
+    {
+      "id": 7877,
+      "fault_codes": [
+        "P0500"
+      ],
+      "query_text_symptom": "Fault codes: P0500. Problem: ABS brake light comes on after about 40 minutes of driving, stays on for 20-30 minutes and then goes off. Cruise control only works if the light is off.",
+      "query_text_solution": "Fix: Performed wheel alignment and replaced bad tires.",
+      "ground_truth": {
+        "guide_id": "2000040485989",
+        "guide_title": "Removing and installing front end.",
+        "repair_text": "Performed wheel alignment and replaced bad tires."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.85,
+        "confidence_score": 1.0,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-540i-p0500-speed-sensor-a.885908/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "ABS brake light comes on after about 40 minutes of driving, stays on for 20-30 minutes and then goes off. Cruise control only works if the light is off.",
+        "obd_data": "{\"fuel_trim_bank1\": 90.0, \"fuel_trim_bank2\": 90.0, \"throttle_position\": 90.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"model\": \"540i\", \"transmission\": \"6-speed manual\"}",
+        "repair_summary": "Performed wheel alignment and replaced bad tires.",
+        "repair_guide": "Performed wheel alignment and replaced bad tires."
+      }
+    },
+    {
+      "id": 9171,
+      "fault_codes": [
+        "P1159",
+        "P1161"
+      ],
+      "query_text_symptom": "Fault codes: P1159, P1161. Problem: Vacuum leak, fuel trim adaptation additive bank 1 high",
+      "query_text_solution": "Fix: Reconnected a hose that was off on the side of the throttle body housing. This resolved P1161.",
+      "ground_truth": {
+        "guide_id": "2000006596388",
+        "guide_title": "Check BMW diagnosis system for excess pressure and vacuum (N63).",
+        "repair_text": "Reconnected a hose that was off on the side of the throttle body housing. This resolved P1161."
+      },
+      "evaluation": {
+        "num_fault_codes": 2,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.65,
+        "confidence_score": 0.95,
+        "test_category": "with_symptoms"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-540i-p1159.977094/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "Vacuum leak, fuel trim adaptation additive bank 1 high",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"BMW\"}",
+        "repair_summary": "Reconnected a hose that was off on the side of the throttle body housing. This resolved P1161.",
+        "repair_guide": "Reconnected a hose that was off on the side of the throttle body housing. This resolved P1161."
+      }
+    },
+    {
+      "id": 6840,
+      "fault_codes": [
+        "P0345"
+      ],
+      "query_text_symptom": "Fault codes: P0345",
+      "query_text_solution": "Fix: replaced the cam shaft sensor on the passenger side and it only started showing one code cam shaft for bank 2 but it still won’t start . I just replaced bank 2 car still isn’t starting.",
+      "ground_truth": {
+        "guide_id": "2000049150738",
+        "guide_title": "-",
+        "repair_text": "replaced the cam shaft sensor on the passenger side and it only started showing one code cam shaft for bank 2 but it still won’t start . I just replaced bank 2 car still isn’t starting."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.65,
+        "confidence_score": 0.65,
+        "test_category": "single_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/%F0%9F%92%94-1999-740il-cut-off-going-up-a-hill.1416840/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{\"coolant_temp\": 2.0, \"intake_air_temp\": 2.0}",
+        "vehicle_context": "{\"year\": 2019}",
+        "repair_summary": "replaced the cam shaft sensor on the passenger side and it only started showing one code cam shaft for bank 2 but it still won’t start . I just replaced bank 2 car still isn’t starting.",
+        "repair_guide": "replaced the cam shaft sensor on the passenger side and it only started showing one code cam shaft for bank 2 but it still won’t start . I just replaced bank 2 car still isn’t starting."
+      }
+    },
+    {
+      "id": 581,
+      "fault_codes": [
+        "P0171"
+      ],
+      "query_text_symptom": "Fault codes: P0171",
+      "query_text_solution": "Fix: replaced the engine and I so don't want to have to do that again but the signs of that were overheating, engine stalled and then eventually just took it out ..",
+      "ground_truth": {
+        "guide_id": "2000033629916",
+        "guide_title": "Replace the coolant hose at the top of the coolant radiator/coolant line (drain coolant and top up, see 17 00 ...)",
+        "repair_text": "replaced the engine and I so don't want to have to do that again but the signs of that were overheating, engine stalled and then eventually just took it out .."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.6,
+        "confidence_score": 0.6,
+        "test_category": "single_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-325xi-stutter.1397159/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{}",
+        "vehicle_context": "{\"year\": 2014, \"mileage\": 122}",
+        "repair_summary": "replaced the engine and I so don't want to have to do that again but the signs of that were overheating, engine stalled and then eventually just took it out ..",
+        "repair_guide": "replaced the engine and I so don't want to have to do that again but the signs of that were overheating, engine stalled and then eventually just took it out .."
+      }
+    },
+    {
+      "id": 6517,
+      "fault_codes": [
+        "P0171",
+        "P0174",
+        "P0300",
+        "P0313"
+      ],
+      "query_text_symptom": "Fault codes: P0171, P0174, P0300, P0313",
+      "query_text_solution": "Fix: cleaned my maf and still have the same problem 98' 528i Sport - Sil/Blk - gone 00' 540i Sport every option available in that year..",
+      "ground_truth": {
+        "guide_id": "2000006596388",
+        "guide_title": "Check BMW diagnosis system for excess pressure and vacuum (N63).",
+        "repair_text": "cleaned my maf and still have the same problem 98' 528i Sport - Sil/Blk - gone 00' 540i Sport every option available in that year.."
+      },
+      "evaluation": {
+        "num_fault_codes": 4,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.8,
+        "confidence_score": 0.8,
+        "test_category": "multi_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-325xi-rough-idle.529441/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{\"coolant_temp\": 10.0, \"intake_air_temp\": 10.0}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2006}",
+        "repair_summary": "cleaned my maf and still have the same problem 98' 528i Sport - Sil/Blk - gone 00' 540i Sport every option available in that year..",
+        "repair_guide": "cleaned my maf and still have the same problem 98' 528i Sport - Sil/Blk - gone 00' 540i Sport every option available in that year.."
+      }
+    },
+    {
+      "id": 826,
+      "fault_codes": [
+        "P0130",
+        "P0150",
+        "P0170",
+        "P0173",
+        "P0300",
+        "P0301",
+        "P0303",
+        "P0305",
+        "P1188",
+        "P1189",
+        "P1770"
+      ],
+      "query_text_symptom": "Fault codes: P0130, P0150, P0170, P0173, P0300, P0301, P0303, P0305, P1188, P1189, P1770",
+      "query_text_solution": "Fix: replaced the air filter. About 100 miles after that, I got a check engine light and the car was intermittently sputtering and huge loss in power.",
+      "ground_truth": {
+        "guide_id": "2000006596388",
+        "guide_title": "Check BMW diagnosis system for excess pressure and vacuum (N63).",
+        "repair_text": "replaced the air filter. About 100 miles after that, I got a check engine light and the car was intermittently sputtering and huge loss in power."
+      },
+      "evaluation": {
+        "num_fault_codes": 11,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.8,
+        "confidence_score": 0.8,
+        "test_category": "multi_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-bmw-328i-rough-idle-11-obdii-codes.724142/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{\"engine_rpm\": 0.0}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2000, \"mileage\": 100}",
+        "repair_summary": "replaced the air filter. About 100 miles after that, I got a check engine light and the car was intermittently sputtering and huge loss in power.",
+        "repair_guide": "replaced the air filter. About 100 miles after that, I got a check engine light and the car was intermittently sputtering and huge loss in power."
+      }
+    },
+    {
+      "id": 3757,
+      "fault_codes": [
+        "P0011",
+        "P1344"
+      ],
+      "query_text_symptom": "Fault codes: P0011, P1344",
+      "query_text_solution": "Fix: Replaced cps,plugs and valve cover gaskets to eliminate oil on plugs. Reset engine light and now have a p1344 code for coil cylinder 2 misfire, still has bumpy idle.",
+      "ground_truth": {
+        "guide_id": "2000006596388",
+        "guide_title": "Check BMW diagnosis system for excess pressure and vacuum (N63).",
+        "repair_text": "Replaced cps,plugs and valve cover gaskets to eliminate oil on plugs. Reset engine light and now have a p1344 code for coil cylinder 2 misfire, still has bumpy idle."
+      },
+      "evaluation": {
+        "num_fault_codes": 2,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.75,
+        "confidence_score": 0.75,
+        "test_category": "multi_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-740i-rough-idle.643711/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{\"engine_rpm\": 700.0, \"coolant_temp\": 11.0, \"fuel_trim_bank1\": 20.0, \"fuel_trim_bank2\": 20.0, \"intake_air_temp\": 11.0, \"throttle_position\": 20.0}",
+        "vehicle_context": "{\"year\": 2012}",
+        "repair_summary": "Replaced cps,plugs and valve cover gaskets to eliminate oil on plugs. Reset engine light and now have a p1344 code for coil cylinder 2 misfire, still has bumpy idle.",
+        "repair_guide": "Replaced cps,plugs and valve cover gaskets to eliminate oil on plugs. Reset engine light and now have a p1344 code for coil cylinder 2 misfire, still has bumpy idle."
+      }
+    },
+    {
+      "id": 9130,
+      "fault_codes": [
+        "P1161",
+        "P1164",
+        "P1165"
+      ],
+      "query_text_symptom": "Fault codes: P1161, P1164, P1165. Problem: Runs rich when cold, engine cuts out at high revs intermittently, high Mass Air Flow (MAF) sensor output voltage at idle, rough idle, lack of power.",
+      "query_text_solution": "Fix: Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing.",
+      "ground_truth": {
+        "guide_id": "2000039659755",
+        "guide_title": "Removing and installing the intake plenum.",
+        "repair_text": "Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing."
+      },
+      "evaluation": {
+        "num_fault_codes": 3,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.85,
+        "confidence_score": 0.95,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-740il-p1161.529992/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "Runs rich when cold, engine cuts out at high revs intermittently, high Mass Air Flow (MAF) sensor output voltage at idle, rough idle, lack of power.",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2000\", \"model\": \"740il\"}",
+        "repair_summary": "Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing.",
+        "repair_guide": "Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing."
+      }
+    },
+    {
+      "id": 4651,
+      "fault_codes": [
+        "P0102"
+      ],
+      "query_text_symptom": "Fault codes: P0102. Problem: MAF sensor problems, 5 incomplete readiness monitors (O2, CAT, EVAP, SEC AIR), no MAF readings from scan tool",
+      "query_text_solution": "Fix: Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked.",
+      "ground_truth": {
+        "guide_id": "2000013310440",
+        "guide_title": "Diesel engine: unable to delete fault memory.",
+        "repair_text": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.9,
+        "confidence_score": 1.0,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-740il-maf-problems.761526/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "MAF sensor problems, 5 incomplete readiness monitors (O2, CAT, EVAP, SEC AIR), no MAF readings from scan tool",
+        "obd_data": "{\"coolant_temp\": 100.0, \"intake_air_temp\": 100.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2001\", \"model\": \"740il\"}",
+        "repair_summary": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked.",
+        "repair_guide": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked."
+      }
+    },
+    {
+      "id": 91,
+      "fault_codes": [
+        "P0171",
+        "P0174",
+        "P1159",
+        "P1161",
+        "P1355"
+      ],
+      "query_text_symptom": "Fault codes: P0171, P0174, P1159, P1161, P1355",
+      "query_text_solution": "Fix: fixed it. Of course this was after I spent large $$$ throwing parts at it.",
+      "ground_truth": {
+        "guide_id": "2000006312307",
+        "guide_title": "-",
+        "repair_text": "fixed it. Of course this was after I spent large $$$ throwing parts at it."
+      },
+      "evaluation": {
+        "num_fault_codes": 5,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.75,
+        "confidence_score": 0.75,
+        "test_category": "high_quality"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-740-service-engine-soon-light.799773/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2014, \"engine\": \"M52\"}",
+        "repair_summary": "fixed it. Of course this was after I spent large $$$ throwing parts at it.",
+        "repair_guide": "fixed it. Of course this was after I spent large $$$ throwing parts at it."
+      }
+    },
+    {
+      "id": 9130,
+      "fault_codes": [
+        "P1161",
+        "P1164",
+        "P1165"
+      ],
+      "query_text_symptom": "Fault codes: P1161, P1164, P1165. Problem: Runs rich when cold, engine cuts out at high revs intermittently, high Mass Air Flow (MAF) sensor output voltage at idle, rough idle, lack of power.",
+      "query_text_solution": "Fix: Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing.",
+      "ground_truth": {
+        "guide_id": "2000039659755",
+        "guide_title": "Removing and installing the intake plenum.",
+        "repair_text": "Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing."
+      },
+      "evaluation": {
+        "num_fault_codes": 3,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.85,
+        "confidence_score": 0.95,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-740il-p1161.529992/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "Runs rich when cold, engine cuts out at high revs intermittently, high Mass Air Flow (MAF) sensor output voltage at idle, rough idle, lack of power.",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2000\", \"model\": \"740il\"}",
+        "repair_summary": "Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing.",
+        "repair_guide": "Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing."
+      }
+    },
+    {
+      "id": 6002,
+      "fault_codes": [
+        "P0171",
+        "P0174"
+      ],
+      "query_text_symptom": "Fault codes: P0171, P0174",
+      "query_text_solution": "Fix: replaced the DISA valve today, and I don't hear that loud whistle as I did before. However, maybe I just didn't connect everything correctly, but when I start the car, there is a bunch of white smoke coming from the exhaust.",
+      "ground_truth": {
+        "guide_id": "2000006596388",
+        "guide_title": "Check BMW diagnosis system for excess pressure and vacuum (N63).",
+        "repair_text": "replaced the DISA valve today, and I don't hear that loud whistle as I did before. However, maybe I just didn't connect everything correctly, but when I start the car, there is a bunch of white smoke coming from the exhaust."
+      },
+      "evaluation": {
+        "num_fault_codes": 2,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.75,
+        "confidence_score": 0.75,
+        "test_category": "multi_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-530i-p0171.1021673/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2015, \"engine\": \"M52\", \"mileage\": 180}",
+        "repair_summary": "replaced the DISA valve today, and I don't hear that loud whistle as I did before. However, maybe I just didn't connect everything correctly, but when I start the car, there is a bunch of white smoke coming from the exhaust.",
+        "repair_guide": "replaced the DISA valve today, and I don't hear that loud whistle as I did before. However, maybe I just didn't connect everything correctly, but when I start the car, there is a bunch of white smoke coming from the exhaust."
+      }
+    },
+    {
+      "id": 9130,
+      "fault_codes": [
+        "P1161",
+        "P1164",
+        "P1165"
+      ],
+      "query_text_symptom": "Fault codes: P1161, P1164, P1165. Problem: Runs rich when cold, engine cuts out at high revs intermittently, high Mass Air Flow (MAF) sensor output voltage at idle, rough idle, lack of power.",
+      "query_text_solution": "Fix: Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing.",
+      "ground_truth": {
+        "guide_id": "2000039659755",
+        "guide_title": "Removing and installing the intake plenum.",
+        "repair_text": "Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing."
+      },
+      "evaluation": {
+        "num_fault_codes": 3,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.85,
+        "confidence_score": 0.95,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-740il-p1161.529992/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "Runs rich when cold, engine cuts out at high revs intermittently, high Mass Air Flow (MAF) sensor output voltage at idle, rough idle, lack of power.",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2000\", \"model\": \"740il\"}",
+        "repair_summary": "Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing.",
+        "repair_guide": "Replaced the Mass Air Flow (MAF) sensor element with a compatible Bosch sensor (part # 0280218002) originally designed for VW, by taking it out of its VW housing."
+      }
+    },
+    {
+      "id": 7877,
+      "fault_codes": [
+        "P0500"
+      ],
+      "query_text_symptom": "Fault codes: P0500. Problem: ABS brake light comes on after about 40 minutes of driving, stays on for 20-30 minutes and then goes off. Cruise control only works if the light is off.",
+      "query_text_solution": "Fix: Performed wheel alignment and replaced bad tires.",
+      "ground_truth": {
+        "guide_id": "2000040485989",
+        "guide_title": "Removing and installing front end.",
+        "repair_text": "Performed wheel alignment and replaced bad tires."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.85,
+        "confidence_score": 1.0,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-540i-p0500-speed-sensor-a.885908/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "ABS brake light comes on after about 40 minutes of driving, stays on for 20-30 minutes and then goes off. Cruise control only works if the light is off.",
+        "obd_data": "{\"fuel_trim_bank1\": 90.0, \"fuel_trim_bank2\": 90.0, \"throttle_position\": 90.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"model\": \"540i\", \"transmission\": \"6-speed manual\"}",
+        "repair_summary": "Performed wheel alignment and replaced bad tires.",
+        "repair_guide": "Performed wheel alignment and replaced bad tires."
+      }
+    },
+    {
+      "id": 3715,
+      "fault_codes": [
+        "P0000",
+        "P0155",
+        "P0170",
+        "P0720",
+        "P1174",
+        "P1175"
+      ],
+      "query_text_symptom": "Fault codes: P0000, P0155, P0170, P0720, P1174, P1175",
+      "query_text_solution": "Fix: Sooo i have a 2000 740il and my car is throwing a few codes.. 1 is for the fuel pressure regular, 1 for oxygen sensor in bay 1 or bank 1 and a speed sensor code.. My question is where is the fuel pressure regular located and where is the speed sensor located.. also where can i get them at a decent p",
+      "ground_truth": {
+        "guide_id": "2000015340579",
+        "guide_title": "-",
+        "repair_text": "Sooo i have a 2000 740il and my car is throwing a few codes.. 1 is for the fuel pressure regular, 1 for oxygen sensor in bay 1 or bank 1 and a speed sensor code.. My question is where is the fuel pressure regular located and where is the speed sensor located.. also where can i get them at a decent price PLz help, Thank you\nSooo i have a 2000 740il and my car is throwing a few codes.. 1 is for the fuel pressure regular, 1 for oxygen sensor in bay 1 or bank 1 and a speed sensor code.."
+      },
+      "evaluation": {
+        "num_fault_codes": 6,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.75,
+        "confidence_score": 0.75,
+        "test_category": "multi_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-740il-neeed-hellllp.585125/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2000}",
+        "repair_summary": "Sooo i have a 2000 740il and my car is throwing a few codes.. 1 is for the fuel pressure regular, 1 for oxygen sensor in bay 1 or bank 1 and a speed sensor code.. My question is where is the fuel pressure regular located and where is the speed sensor located.. also where can i get them at a decent price PLz help, Thank you\nSooo i have a 2000 740il and my car is throwing a few codes.. 1 is for the fuel pressure regular, 1 for oxygen sensor in bay 1 or bank 1 and a speed sensor code..",
+        "repair_guide": "Sooo i have a 2000 740il and my car is throwing a few codes.. 1 is for the fuel pressure regular, 1 for oxygen sensor in bay 1 or bank 1 and a speed sensor code.. My question is where is the fuel pressure regular located and where is the speed sensor located.. also where can i get them at a decent price PLz help, Thank you\nSooo i have a 2000 740il and my car is throwing a few codes.. 1 is for the fuel pressure regular, 1 for oxygen sensor in bay 1 or bank 1 and a speed sensor code.."
+      }
+    },
+    {
+      "id": 9529,
+      "fault_codes": [
+        "P1350",
+        "P0300",
+        "P1347"
+      ],
+      "query_text_symptom": "Fault codes: P1350, P0300, P1347. Problem: Misfire on cylinders 3 and 5, severe shaking when cold, service engine soon light",
+      "query_text_solution": "Fix: Replaced all ignition coils.",
+      "ground_truth": {
+        "guide_id": "2000049184350",
+        "guide_title": "-",
+        "repair_text": "Replaced all ignition coils."
+      },
+      "evaluation": {
+        "num_fault_codes": 3,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.95,
+        "confidence_score": 0.9,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-525-shakes.843169/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "Misfire on cylinders 3 and 5, severe shaking when cold, service engine soon light",
+        "obd_data": "{\"fuel_trim_bank1\": 20.0, \"fuel_trim_bank2\": 20.0, \"throttle_position\": 20.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2001\", \"model\": \"525i\", \"engine\": \"2.5l M54\"}",
+        "repair_summary": "Replaced all ignition coils.",
+        "repair_guide": "Replaced all ignition coils."
+      }
+    },
+    {
+      "id": 3775,
+      "fault_codes": [
+        "P0011"
+      ],
+      "query_text_symptom": "Fault codes: P0011",
+      "query_text_solution": "Fix: cleaned and they will provide me with the data sheet for the pressure tests.  They don't use Chinese parts! I ordered it.",
+      "ground_truth": {
+        "guide_id": "2000008888184",
+        "guide_title": "Check fresh air flap motor, integrated automatic heating and air-conditioning system in High + Basic version.",
+        "repair_text": "cleaned and they will provide me with the data sheet for the pressure tests.  They don't use Chinese parts! I ordered it."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.8,
+        "confidence_score": 0.8,
+        "test_category": "single_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-540it-code-33-chain-noise-204-000-miles.1335983/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{\"coolant_temp\": 4.0, \"intake_air_temp\": 4.0}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2003, \"engine\": \"LS3\", \"mileage\": 185000}",
+        "repair_summary": "cleaned and they will provide me with the data sheet for the pressure tests.  They don't use Chinese parts! I ordered it.",
+        "repair_guide": "cleaned and they will provide me with the data sheet for the pressure tests.  They don't use Chinese parts! I ordered it."
+      }
+    },
+    {
+      "id": 1182,
+      "fault_codes": [
+        "P0302",
+        "P0304"
+      ],
+      "query_text_symptom": "Fault codes: P0302, P0304. Problem: misfire",
+      "query_text_solution": "Fix: Replaced all coil packs.",
+      "ground_truth": {
+        "guide_id": "2000049184350",
+        "guide_title": "-",
+        "repair_text": "Replaced all coil packs."
+      },
+      "evaluation": {
+        "num_fault_codes": 2,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.95,
+        "confidence_score": 0.9,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/0-fuel-trim-long-short-with-misfire.925997/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "misfire",
+        "obd_data": "{\"fuel_trim_bank1\": 0.0, \"fuel_trim_bank2\": 0.0, \"throttle_position\": 0.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2005\", \"model\": \"325xi\"}",
+        "repair_summary": "Replaced all coil packs.",
+        "repair_guide": "Replaced all coil packs."
+      }
+    },
+    {
+      "id": 5188,
+      "fault_codes": [
+        "P0120",
+        "P0123",
+        "P0222",
+        "P0348"
+      ],
+      "query_text_symptom": "Fault codes: P0120, P0123, P0222, P0348",
+      "query_text_solution": "Fix: replaced it now there is fuel in the rail with plenty of pressure. I just installed a new throttle body as I have codes stating throttle pedal postion sensor is bad.",
+      "ground_truth": {
+        "guide_id": "2000006596388",
+        "guide_title": "Check BMW diagnosis system for excess pressure and vacuum (N63).",
+        "repair_text": "replaced it now there is fuel in the rail with plenty of pressure. I just installed a new throttle body as I have codes stating throttle pedal postion sensor is bad."
+      },
+      "evaluation": {
+        "num_fault_codes": 4,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.75,
+        "confidence_score": 0.75,
+        "test_category": "high_quality"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-540i-crank-but-no-start.1447063/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2014}",
+        "repair_summary": "replaced it now there is fuel in the rail with plenty of pressure. I just installed a new throttle body as I have codes stating throttle pedal postion sensor is bad.",
+        "repair_guide": "replaced it now there is fuel in the rail with plenty of pressure. I just installed a new throttle body as I have codes stating throttle pedal postion sensor is bad."
+      }
+    },
+    {
+      "id": 10399,
+      "fault_codes": [
+        "P1522"
+      ],
+      "query_text_symptom": "Fault codes: P1522",
+      "query_text_solution": "Fix: 2000 740 I throwing stuck vanos message. What symptoms would I see if this were the case. Car idles fine, just not much power, when driving if I floor it the car will downshift and the rpms will climb but it will not change gears until I let my foot off the gas. Also it does not have the power it us",
+      "ground_truth": {
+        "guide_id": "2000007850880",
+        "guide_title": "-",
+        "repair_text": "2000 740 I throwing stuck vanos message. What symptoms would I see if this were the case. Car idles fine, just not much power, when driving if I floor it the car will downshift and the rpms will climb but it will not change gears until I let my foot off the gas. Also it does not have the power it used too. Could this all possibly be due to a faulty MAF. Could oil  (low) cause this. really need help on this one. 2000 740 I throwing stuck vanos message. What symptoms would I see if this were the c"
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.75,
+        "confidence_score": 0.75,
+        "test_category": "single_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-740-throwing-stuck-vanos-message.418007/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{\"coolant_temp\": 1.0, \"intake_air_temp\": 1.0}",
+        "vehicle_context": "{\"make\": \"Honda\", \"year\": 2000}",
+        "repair_summary": "2000 740 I throwing stuck vanos message. What symptoms would I see if this were the case. Car idles fine, just not much power, when driving if I floor it the car will downshift and the rpms will climb but it will not change gears until I let my foot off the gas. Also it does not have the power it used too. Could this all possibly be due to a faulty MAF. Could oil  (low) cause this. really need help on this one. 2000 740 I throwing stuck vanos message. What symptoms would I see if this were the case.",
+        "repair_guide": "2000 740 I throwing stuck vanos message. What symptoms would I see if this were the case. Car idles fine, just not much power, when driving if I floor it the car will downshift and the rpms will climb but it will not change gears until I let my foot off the gas. Also it does not have the power it used too. Could this all possibly be due to a faulty MAF. Could oil  (low) cause this. really need help on this one. 2000 740 I throwing stuck vanos message. What symptoms would I see if this were the case."
+      }
+    },
+    {
+      "id": 9529,
+      "fault_codes": [
+        "P1350",
+        "P0300",
+        "P1347"
+      ],
+      "query_text_symptom": "Fault codes: P1350, P0300, P1347. Problem: Misfire on cylinders 3 and 5, severe shaking when cold, service engine soon light",
+      "query_text_solution": "Fix: Replaced all ignition coils.",
+      "ground_truth": {
+        "guide_id": "2000049184350",
+        "guide_title": "-",
+        "repair_text": "Replaced all ignition coils."
+      },
+      "evaluation": {
+        "num_fault_codes": 3,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.95,
+        "confidence_score": 0.9,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-525-shakes.843169/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "Misfire on cylinders 3 and 5, severe shaking when cold, service engine soon light",
+        "obd_data": "{\"fuel_trim_bank1\": 20.0, \"fuel_trim_bank2\": 20.0, \"throttle_position\": 20.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2001\", \"model\": \"525i\", \"engine\": \"2.5l M54\"}",
+        "repair_summary": "Replaced all ignition coils.",
+        "repair_guide": "Replaced all ignition coils."
+      }
+    },
+    {
+      "id": 1182,
+      "fault_codes": [
+        "P0302",
+        "P0304"
+      ],
+      "query_text_symptom": "Fault codes: P0302, P0304. Problem: misfire",
+      "query_text_solution": "Fix: Replaced all coil packs.",
+      "ground_truth": {
+        "guide_id": "2000049184350",
+        "guide_title": "-",
+        "repair_text": "Replaced all coil packs."
+      },
+      "evaluation": {
+        "num_fault_codes": 2,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.95,
+        "confidence_score": 0.9,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/0-fuel-trim-long-short-with-misfire.925997/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "misfire",
+        "obd_data": "{\"fuel_trim_bank1\": 0.0, \"fuel_trim_bank2\": 0.0, \"throttle_position\": 0.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2005\", \"model\": \"325xi\"}",
+        "repair_summary": "Replaced all coil packs.",
+        "repair_guide": "Replaced all coil packs."
+      }
+    },
+    {
+      "id": 9529,
+      "fault_codes": [
+        "P1350",
+        "P0300",
+        "P1347"
+      ],
+      "query_text_symptom": "Fault codes: P1350, P0300, P1347. Problem: Misfire on cylinders 3 and 5, severe shaking when cold, service engine soon light",
+      "query_text_solution": "Fix: Replaced all ignition coils.",
+      "ground_truth": {
+        "guide_id": "2000049184350",
+        "guide_title": "-",
+        "repair_text": "Replaced all ignition coils."
+      },
+      "evaluation": {
+        "num_fault_codes": 3,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.95,
+        "confidence_score": 0.9,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-525-shakes.843169/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "Misfire on cylinders 3 and 5, severe shaking when cold, service engine soon light",
+        "obd_data": "{\"fuel_trim_bank1\": 20.0, \"fuel_trim_bank2\": 20.0, \"throttle_position\": 20.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2001\", \"model\": \"525i\", \"engine\": \"2.5l M54\"}",
+        "repair_summary": "Replaced all ignition coils.",
+        "repair_guide": "Replaced all ignition coils."
+      }
+    },
+    {
+      "id": 1182,
+      "fault_codes": [
+        "P0302",
+        "P0304"
+      ],
+      "query_text_symptom": "Fault codes: P0302, P0304. Problem: misfire",
+      "query_text_solution": "Fix: Replaced all coil packs.",
+      "ground_truth": {
+        "guide_id": "2000049184350",
+        "guide_title": "-",
+        "repair_text": "Replaced all coil packs."
+      },
+      "evaluation": {
+        "num_fault_codes": 2,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.95,
+        "confidence_score": 0.9,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/0-fuel-trim-long-short-with-misfire.925997/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "misfire",
+        "obd_data": "{\"fuel_trim_bank1\": 0.0, \"fuel_trim_bank2\": 0.0, \"throttle_position\": 0.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2005\", \"model\": \"325xi\"}",
+        "repair_summary": "Replaced all coil packs.",
+        "repair_guide": "Replaced all coil packs."
+      }
+    },
+    {
+      "id": 4651,
+      "fault_codes": [
+        "P0102"
+      ],
+      "query_text_symptom": "Fault codes: P0102. Problem: MAF sensor problems, 5 incomplete readiness monitors (O2, CAT, EVAP, SEC AIR), no MAF readings from scan tool",
+      "query_text_solution": "Fix: Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked.",
+      "ground_truth": {
+        "guide_id": "2000013310440",
+        "guide_title": "Diesel engine: unable to delete fault memory.",
+        "repair_text": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.9,
+        "confidence_score": 1.0,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-740il-maf-problems.761526/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "MAF sensor problems, 5 incomplete readiness monitors (O2, CAT, EVAP, SEC AIR), no MAF readings from scan tool",
+        "obd_data": "{\"coolant_temp\": 100.0, \"intake_air_temp\": 100.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"year\": \"2001\", \"model\": \"740il\"}",
+        "repair_summary": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked.",
+        "repair_guide": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked."
+      }
+    },
+    {
+      "id": 5261,
+      "fault_codes": [
+        "P0128"
+      ],
+      "query_text_symptom": "Fault codes: P0128",
+      "query_text_solution": "Fix: Replaced As Well With The Lower Radiator hose. Do you mean the sensor located on the lower radiator hose Save Share Reply Quote Like B bmdubya1198 6,675 posts · Joined 2012 Add to quote #18 · Jun 22, 2017 Yes Alex | 1999 528iT Sport APW/Sandbeige, 2012 X5 35i APW/Saddle brown, 1984 318i Balticblau, ",
+      "ground_truth": {
+        "guide_id": "2000006596617",
+        "guide_title": "For further tasks to be carried out on the M52TU engine, refer to microfiche Repair Instructions, Series 3 E46.",
+        "repair_text": "Replaced As Well With The Lower Radiator hose. Do you mean the sensor located on the lower radiator hose Save Share Reply Quote Like B bmdubya1198 6,675 posts · Joined 2012 Add to quote #18 · Jun 22, 2017 Yes Alex | 1999 528iT Sport APW/Sandbeige, 2012 X5 35i APW/Saddle brown, 1984 318i Balticblau, 2001 330Ci Topasblau, 2003 330i Black Previous- 2003 X5 3."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": false,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.75,
+        "confidence_score": 0.75,
+        "test_category": "single_code"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/01-540i-stuck-up-thermostat.984130/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "",
+        "obd_data": "{}",
+        "vehicle_context": "{\"make\": \"Bmw\", \"year\": 2013}",
+        "repair_summary": "Replaced As Well With The Lower Radiator hose. Do you mean the sensor located on the lower radiator hose Save Share Reply Quote Like B bmdubya1198 6,675 posts · Joined 2012 Add to quote #18 · Jun 22, 2017 Yes Alex | 1999 528iT Sport APW/Sandbeige, 2012 X5 35i APW/Saddle brown, 1984 318i Balticblau, 2001 330Ci Topasblau, 2003 330i Black Previous- 2003 X5 3.",
+        "repair_guide": "Replaced As Well With The Lower Radiator hose. Do you mean the sensor located on the lower radiator hose Save Share Reply Quote Like B bmdubya1198 6,675 posts · Joined 2012 Add to quote #18 · Jun 22, 2017 Yes Alex | 1999 528iT Sport APW/Sandbeige, 2012 X5 35i APW/Saddle brown, 1984 318i Balticblau, 2001 330Ci Topasblau, 2003 330i Black Previous- 2003 X5 3."
+      }
+    },
+    {
+      "id": 7877,
+      "fault_codes": [
+        "P0500"
+      ],
+      "query_text_symptom": "Fault codes: P0500. Problem: ABS brake light comes on after about 40 minutes of driving, stays on for 20-30 minutes and then goes off. Cruise control only works if the light is off.",
+      "query_text_solution": "Fix: Performed wheel alignment and replaced bad tires.",
+      "ground_truth": {
+        "guide_id": "2000040485989",
+        "guide_title": "Removing and installing front end.",
+        "repair_text": "Performed wheel alignment and replaced bad tires."
+      },
+      "evaluation": {
+        "num_fault_codes": 1,
+        "has_symptoms": true,
+        "has_obd_data": true,
+        "has_vehicle_context": true,
+        "quality_score": 0.85,
+        "confidence_score": 1.0,
+        "test_category": "with_obd_data"
+      },
+      "source": {
+        "url": "https://www.bimmerfest.com/threads/00-540i-p0500-speed-sensor-a.885908/",
+        "type": "forum"
+      },
+      "raw_data": {
+        "symptoms": "ABS brake light comes on after about 40 minutes of driving, stays on for 20-30 minutes and then goes off. Cruise control only works if the light is off.",
+        "obd_data": "{\"fuel_trim_bank1\": 90.0, \"fuel_trim_bank2\": 90.0, \"throttle_position\": 90.0}",
+        "vehicle_context": "{\"make\": \"BMW\", \"model\": \"540i\", \"transmission\": \"6-speed manual\"}",
+        "repair_summary": "Performed wheel alignment and replaced bad tires.",
+        "repair_guide": "Performed wheel alignment and replaced bad tires."
+      }
+    }
+  ]
+}

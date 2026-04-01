@@ -1,0 +1,35 @@
+[
+  {
+    "test": "optimized_config",
+    "expansions": 2,
+    "expansion_weight": 0.4,
+    "avg_similarity": 0.3080315049586496,
+    "std_similarity": 0.13393447775755793,
+    "avg_time": 1.6964606602986654,
+    "total_cost": 0.0015,
+    "improvement_over_baseline": null
+  },
+  {
+    "test": "speed_accuracy_tradeoff",
+    "configs": [
+      {
+        "config": "fast",
+        "expansions": 1,
+        "avg_similarity": 0.400504249495884,
+        "avg_time": 1.747809362411499
+      },
+      {
+        "config": "balanced",
+        "expansions": 2,
+        "avg_similarity": 0.4025073147585232,
+        "avg_time": 1.8134241580963135
+      },
+      {
+        "config": "accurate",
+        "expansions": 3,
+        "avg_similarity": 0.40576461940281644,
+        "avg_time": 2.1877798557281496
+      }
+    ]
+  }
+]

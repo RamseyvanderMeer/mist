@@ -1,0 +1,148 @@
+{
+  "metadata": {
+    "test_date": "2026-03-16 22:43:19",
+    "test_records": 30,
+    "openrouter_api_key_set": true
+  },
+  "dataset_analysis": {
+    "total_records": 30,
+    "unique_fault_codes": 42,
+    "unique_guides": 13,
+    "code_frequency": {
+      "P0102": 3,
+      "P0171": 5,
+      "P0173": 2,
+      "P0440": 1,
+      "P0442": 1,
+      "P1250": 1,
+      "P1159": 3,
+      "P1161": 6,
+      "P0500": 3,
+      "P0345": 1,
+      "P0174": 3,
+      "P0300": 5,
+      "P0313": 1,
+      "P0130": 1,
+      "P0150": 1,
+      "P0170": 2,
+      "P0301": 1,
+      "P0303": 1,
+      "P0305": 1,
+      "P1188": 1,
+      "P1189": 1,
+      "P1770": 1,
+      "P0011": 2,
+      "P1344": 1,
+      "P1164": 3,
+      "P1165": 3,
+      "P1355": 1,
+      "P0000": 1,
+      "P0155": 1,
+      "P0720": 1,
+      "P1174": 1,
+      "P1175": 1,
+      "P1350": 3,
+      "P1347": 3,
+      "P0302": 3,
+      "P0304": 3,
+      "P0120": 1,
+      "P0123": 1,
+      "P0222": 1,
+      "P0348": 1,
+      "P1522": 1,
+      "P0128": 1
+    },
+    "has_symptoms_pct": 0.5333333333333333,
+    "has_obd_pct": 1.0
+  },
+  "embedding_tests": {
+    "openrouter_small": {
+      "model": "openai/text-embedding-3-small",
+      "total_queries": 30,
+      "total_time": 0.6469292640686035,
+      "avg_time_per_query": 0.021564308802286783,
+      "dimensions": 1536,
+      "estimated_cost": 3e-05,
+      "embeddings": "[[-1.74718042e-04  3.59205883e-02 -6.97431168e-03 ... -1.88825181e-02\n  -1.47786243e-02 -2.04272411e-02]\n [-3.22778028e-02 -5.18840441e-03 -2.89995890e-02 ... -5.36114111e-02\n  -1.81058303e-02 -1.54706494e-02]\n [-4.23078283e-02 -2.88485578e-02 -2.02777932e-02 ... -3.72542535e-02\n   1.36624325e-02 -5.17737679e-03]\n ...\n [-9.94031090e-05  3.59118932e-02 -7.00719895e-03 ... -1.88548961e-02\n  -1.47750473e-02 -2.04453460e-02]\n [-1.86362084e-02 -1.69318304e-02 -3.59288208e-02 ... -2.66978006e-02\n   1.22105733e-02  2.06391665e-02]\n [-4.20860783e-02  3.16383747e-02  4.52828482e-03 ... -4.26709213e-03\n   2.45748170e-02 -1.35365915e-02]]"
+    }
+  },
+  "query_variant_tests": {
+    "query_variants_tested": [
+      "fault_codes_only",
+      "with_symptoms",
+      "with_solution"
+    ],
+    "results": [
+      {
+        "record_id": 4651,
+        "fault_codes": [
+          "P0102"
+        ],
+        "similarity_symptom_solution": 0.5190906327372685,
+        "ground_truth": {
+          "guide_id": "2000013310440",
+          "guide_title": "Diesel engine: unable to delete fault memory.",
+          "repair_text": "Replaced MAF sensor with a new OEM Bosch unit and replaced the gas cap as its rubber gasket was cracked."
+        }
+      },
+      {
+        "record_id": 2029,
+        "fault_codes": [
+          "P0171",
+          "P0173",
+          "P0440",
+          "P0442",
+          "P1250"
+        ],
+        "similarity_symptom_solution": 0.32951024944493823,
+        "ground_truth": {
+          "guide_id": "2000008888184",
+          "guide_title": "Check fresh air flap motor, integrated automatic heating and air-conditioning system in High + Basic version.",
+          "repair_text": "reset a number of times and they didn't come back on.  I've had 6 bmws."
+        }
+      },
+      {
+        "record_id": 9140,
+        "fault_codes": [
+          "P1159",
+          "P1161"
+        ],
+        "similarity_symptom_solution": 0.3588037129626219,
+        "ground_truth": {
+          "guide_id": "2000015586196",
+          "guide_title": "Removing and installing the intake plenum.",
+          "repair_text": "replaced upper timing cover and valve cover gaskets on my 2001 740i sport.  I had to do the passenger side valve cover again since i noticed that i pinched the gasket and was leaking oil."
+        }
+      },
+      {
+        "record_id": 7877,
+        "fault_codes": [
+          "P0500"
+        ],
+        "similarity_symptom_solution": 0.2829701953907586,
+        "ground_truth": {
+          "guide_id": "2000040485989",
+          "guide_title": "Removing and installing front end.",
+          "repair_text": "Performed wheel alignment and replaced bad tires."
+        }
+      },
+      {
+        "record_id": 9171,
+        "fault_codes": [
+          "P1159",
+          "P1161"
+        ],
+        "similarity_symptom_solution": 0.6192724052909047,
+        "ground_truth": {
+          "guide_id": "2000006596388",
+          "guide_title": "Check BMW diagnosis system for excess pressure and vacuum (N63).",
+          "repair_text": "Reconnected a hose that was off on the side of the throttle body housing. This resolved P1161."
+        }
+      }
+    ]
+  },
+  "recommendations": [
+    "Test with full retrieval pipeline to measure end-to-end accuracy",
+    "Compare OpenRouter embeddings against local E5-Mistral on same queries"
+  ]
+}

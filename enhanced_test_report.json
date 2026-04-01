@@ -1,0 +1,96 @@
+{
+  "metadata": {
+    "test_date": "2026-03-16 22:53:45",
+    "test_records": 30,
+    "openrouter_api_key_set": true
+  },
+  "query_expansion_test": {
+    "results": [
+      {
+        "record_id": 4651,
+        "fault_codes": [
+          "P0102"
+        ],
+        "symptoms": "MAF sensor problems, 5 incomplete readiness monitors (O2, CAT, EVAP, SEC AIR), no MAF readings from scan tool",
+        "expanded_queries": [
+          "Fault codes: P0102. Problem: MAF sensor problems, 5 incomplete readiness monitors (O2, CAT, EVAP, SEC AIR), no MAF readings from scan tool",
+          "check MAF sensor wiring and connectors for damage or corrosion",
+          "replace MAF sensor and clear fault code P0102",
+          "clean MAF sensor and inspect air intake system for leaks or obstructions"
+        ],
+        "expansion_similarities": [
+          0.5396489660255883,
+          0.680652318953778,
+          0.6037949254329309
+        ],
+        "avg_similarity": 0.6080320701374324,
+        "expansion_time": 1.2878155708312988,
+        "estimated_cost": 3e-05
+      },
+      {
+        "record_id": 7877,
+        "fault_codes": [
+          "P0500"
+        ],
+        "symptoms": "ABS brake light comes on after about 40 minutes of driving, stays on for 20-30 minutes and then goes off. Cruise control only works if the light is off.",
+        "expanded_queries": [
+          "Fault codes: P0500. Problem: ABS brake light comes on after about 40 minutes of driving, stays on for 20-30 minutes and then goes off. Cruise control only works if the light is off.",
+          "Check vehicle speed sensor for faults or damage related to code P0500.",
+          "Inspect wiring and connectors for the ABS system to ensure proper connections and grounding.",
+          "Replace or clean the vehicle speed sensor and check the ABS module for any related issues."
+        ],
+        "expansion_similarities": [
+          0.5724522660686373,
+          0.4808578557402784,
+          0.5444247694893911
+        ],
+        "avg_similarity": 0.5325782970994356,
+        "expansion_time": 1.4885034561157227,
+        "estimated_cost": 3e-05
+      },
+      {
+        "record_id": 9171,
+        "fault_codes": [
+          "P1159",
+          "P1161"
+        ],
+        "symptoms": "Vacuum leak, fuel trim adaptation additive bank 1 high",
+        "expanded_queries": [
+          "Fault codes: P1159, P1161. Problem: Vacuum leak, fuel trim adaptation additive bank 1 high",
+          "Check for vacuum leaks in the intake manifold and associated hoses.",
+          "Inspect and replace the mass airflow sensor if readings are abnormal.",
+          "Clean the fuel injectors and check the fuel pressure regulator for proper operation."
+        ],
+        "expansion_similarities": [
+          0.5113944910570589,
+          0.4628272487291547,
+          0.4257648648791015
+        ],
+        "avg_similarity": 0.466662201555105,
+        "expansion_time": 1.4607138633728027,
+        "estimated_cost": 3e-05
+      }
+    ],
+    "total_cost": 9e-05,
+    "avg_similarity": 0.5357575229306577
+  },
+  "hybrid_retrieval_test": {
+    "results": [
+      {
+        "record_id": 4651,
+        "retrieval_time": 1.4262313842773438,
+        "num_variations": 4
+      }
+    ]
+  },
+  "approach_comparison": {
+    "baseline_avg_norm": 1.0,
+    "expanded_avg_norm": 1.0,
+    "norm_improvement": 0.0
+  },
+  "recommendations": [
+    "Query expansion is similar to original - may need more diverse prompts",
+    "Next: Test end-to-end retrieval with ChromaDB to measure accuracy improvement",
+    "Consider caching expanded queries to reduce API costs"
+  ]
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "test": "prompt_variations",
+    "results": [
+      {
+        "prompt": "default",
+        "avg_similarity": 0.3800602815570285
+      },
+      {
+        "prompt": "action_focused",
+        "avg_similarity": 0.39517603851751854
+      },
+      {
+        "prompt": "component_focused",
+        "avg_similarity": 0.37077181690850497
+      },
+      {
+        "prompt": "symptom_to_fix",
+        "avg_similarity": 0.3930840372099775
+      }
+    ]
+  },
+  {
+    "test": "caching",
+    "no_cache_time": 2.501332998275757,
+    "cache_time": 3.5762786865234375e-06,
+    "speedup": 699423.4
+  }
+]

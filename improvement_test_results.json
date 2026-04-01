@@ -1,0 +1,49 @@
+[
+  {
+    "test": "embedding_model",
+    "model": "openai/text-embedding-3-small",
+    "avg_similarity": 0.37129919579106413,
+    "avg_time": 0.7031588554382324,
+    "dimensions": 1536
+  },
+  {
+    "test": "embedding_model",
+    "model": "openai/text-embedding-3-large",
+    "avg_similarity": 0.37828260650789974,
+    "avg_time": 0.9756411075592041,
+    "dimensions": 3072
+  },
+  {
+    "test": "expansion_count",
+    "count": 2,
+    "avg_similarity": 0.4315515464839151,
+    "total_cost": 0.0005
+  },
+  {
+    "test": "expansion_count",
+    "count": 3,
+    "avg_similarity": 0.41155931032563703,
+    "total_cost": 0.0005
+  },
+  {
+    "test": "expansion_count",
+    "count": 4,
+    "avg_similarity": 0.4089292344556533,
+    "total_cost": 0.0005
+  },
+  {
+    "test": "expansion_weight",
+    "weight": 0.2,
+    "avg_similarity": 0.3935065523873827
+  },
+  {
+    "test": "expansion_weight",
+    "weight": 0.3,
+    "avg_similarity": 0.40356564186636934
+  },
+  {
+    "test": "expansion_weight",
+    "weight": 0.4,
+    "avg_similarity": 0.41265100954013734
+  }
+]

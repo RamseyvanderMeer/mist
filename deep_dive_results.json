@@ -1,0 +1,47 @@
+[
+  {
+    "investigation": "fault_code_boost",
+    "results": [
+      {
+        "boost": 1.0,
+        "avg_rank_improvement": 0.0,
+        "positive_improvements": 0,
+        "total": 10
+      },
+      {
+        "boost": 1.5,
+        "avg_rank_improvement": 0.0,
+        "positive_improvements": 0,
+        "total": 10
+      },
+      {
+        "boost": 2.0,
+        "avg_rank_improvement": 0.0,
+        "positive_improvements": 0,
+        "total": 10
+      },
+      {
+        "boost": 3.0,
+        "avg_rank_improvement": 0.0,
+        "positive_improvements": 0,
+        "total": 10
+      }
+    ],
+    "optimal_boost": 1.0,
+    "verdict": "MARGINAL"
+  },
+  {
+    "investigation": "knowledge_graph",
+    "avg_improvement": -0.00953617203410112,
+    "positive_count": 0,
+    "total": 3,
+    "verdict": "MARGINAL"
+  },
+  {
+    "investigation": "feedback_reranking",
+    "avg_improvement": 0.024999999999999994,
+    "matches_found": 2,
+    "total_tested": 8,
+    "verdict": "PROMISING"
+  }
+]
