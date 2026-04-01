@@ -34,8 +34,9 @@ jobs:
 
     - name: Build and Push Container
       run: |
-        # Build and wait for completion
-        gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest .
+        # Build without streaming logs (avoids permission issues)
+        gcloud builds submit --no-stream-logs --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest .
+        echo "Build completed successfully"
 
     - name: Deploy to Cloud Run
       id: deploy
