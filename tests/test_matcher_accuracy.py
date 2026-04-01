@@ -308,6 +308,7 @@ def _run_matcher_evaluation(
     use_llm: bool = False,
     use_symptom_expansion: bool = True,
     top_k: int = 3,
+    llm_candidate_k: int = 1,
     verbose: bool = True,
     mode_label: str = "",
     progress_interval: int = 1,
@@ -320,6 +321,8 @@ def _run_matcher_evaluation(
         query_mode = "symptom"
     if not mode_label:
         mode_label = query_mode
+    if llm_candidate_k < 1:
+        llm_candidate_k = 1
 
     query_expander = _create_query_expander(
         enabled=bool(query_mode == "symptom" and use_symptom_expansion)
@@ -337,9 +340,13 @@ def _run_matcher_evaluation(
     correct = 0
     total = 0
     llm_correct = 0
+    llm_topk_correct = 0
     similarities: List[float] = []
     no_results = 0
     retrieval_errors = 0
+    retrieval_k = top_k
+    if use_llm and llm_candidate_k > retrieval_k:
+        retrieval_k = llm_candidate_k
 
     total_records = len(records)
     try:
@@ -375,7 +382,7 @@ def _run_matcher_evaluation(
                 fault_codes=fault_codes,
                 obd_data={},
                 description=description,
-                top_k=top_k,
+                top_k=retrieval_k,
             )
         except EnhancedRetrieverError as e:
             retrieval_errors += 1
@@ -407,17 +414,45 @@ def _run_matcher_evaluation(
         total += 1
 
         llm_match = False
-        reason = ""
+        llm_top_match_rank = None
+        top1_reason = ""
+        topk_reason = ""
         if use_llm:
-            llm_match, reason = _llm_evaluate_match(solution_text, guide_title, guide_content)
+            evaluate_count = min(len(retrieved), llm_candidate_k)
+            for rank, candidate in enumerate(retrieved[:evaluate_count], start=1):
+                candidate_title = candidate.get("title") or ""
+                candidate_content = candidate.get("text") or ""
+                is_match, reason = _llm_evaluate_match(
+                    solution_text,
+                    candidate_title,
+                    candidate_content,
+                )
+                if rank == 1:
+                    llm_match = is_match
+                    top1_reason = reason
+                if is_match and llm_top_match_rank is None:
+                    llm_top_match_rank = rank
+                    topk_reason = reason
             if llm_match:
                 llm_correct += 1
+            if llm_top_match_rank is not None:
+                llm_topk_correct += 1
 
         if show_detailed_records:
             if use_llm:
+                if llm_candidate_k > 1:
+                    if llm_top_match_rank is None:
+                        llm_top_status = f"✗ (within top-{llm_candidate_k})"
+                        llm_top_reason = ""
+                    else:
+                        llm_top_status = f"✓@{llm_top_match_rank} (within top-{llm_candidate_k})"
+                        llm_top_reason = topk_reason
+                    llm_top_text = f" LLM(top-1): {'✓' if llm_match else '✗'} {top1_reason[:80]} | LLM({llm_candidate_k}): {llm_top_status} {llm_top_reason[:80]}"
+                else:
+                    llm_top_text = f" LLM: {'✓' if llm_match else '✗'} {top1_reason[:80]}"
                 print(
                     f"    Similarity={sim:.3f} {'✓' if is_match else '✗'} |"
-                    f" LLM: {'✓' if llm_match else '✗'} {reason[:80]}",
+                    f"{llm_top_text}",
                     flush=True,
                 )
             else:
@@ -429,6 +464,10 @@ def _run_matcher_evaluation(
     avg_sim = sum(similarities) / len(similarities) if similarities else 0.0
     llm_accuracy = llm_correct / total if use_llm and total else 0.0
     llm_accuracy_overall = llm_correct / attempted if use_llm and attempted else 0.0
+    llm_topk_accuracy = llm_topk_correct / total if use_llm and total else 0.0
+    llm_topk_accuracy_overall = (
+        llm_topk_correct / attempted if use_llm and attempted else 0.0
+    )
     coverage = total / attempted if attempted else 0.0
 
     return {
@@ -443,9 +482,13 @@ def _run_matcher_evaluation(
         "accuracy_overall": accuracy_overall,
         "avg_similarity": avg_sim,
         "use_llm": use_llm,
+        "llm_candidate_k": llm_candidate_k,
         "llm_correct": llm_correct,
         "llm_accuracy": llm_accuracy,
         "llm_accuracy_overall": llm_accuracy_overall,
+        "llm_topk_correct": llm_topk_correct,
+        "llm_topk_accuracy": llm_topk_accuracy,
+        "llm_topk_accuracy_overall": llm_topk_accuracy_overall,
         "coverage": coverage,
         "no_results": no_results,
         "retrieval_errors": retrieval_errors,
