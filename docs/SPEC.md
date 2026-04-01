@@ -109,8 +109,8 @@ Concise, path-grounded description of the codebase. For narrative architecture, 
 
 ## 7. Cross-cutting concerns
 
-- **Configuration:** YAML under `config/`; paths via `src/paths.py`. Env vars for secrets and overrides (API keys, `CHROMA_DB_*`, `DATABASE_URL`, `REDIS_URL`, `ISTA_DB_PATH`, etc.).
-- **Auth (deployed):** Google IAP headers (`X-Goog-Authenticated-User-*`) + user rows in Postgres; tier-based rate limits (`src/auth/dependencies.py`).
+- **Configuration:** YAML under `config/`; paths via `src/paths.py`. Env vars for secrets and overrides (API keys, `CHROMA_DB_*`, `DATABASE_URL`, `REDIS_URL`, `RATE_LIMIT_IP_FALLBACK`, `ISTA_DB_PATH`, etc.).
+- **Auth (deployed):** Google IAP headers (`X-Goog-Authenticated-User-*`) + user rows in Postgres; **`/query` and `/clarify`** use **slowapi** with a dynamic limit from the user’s `RateLimitTier` (sync DB lookup by rate-limit key in `tier_limit_for_ratelimit_key`, `src/auth/dependencies.py`). Requests without an IAP email fall back to an IP bucket; override with **`RATE_LIMIT_IP_FALLBACK`** (default `1000/minute` for local/tests).
 - **Security middleware:** `src/api/security.py` (e.g. API keys where configured).
 - **Logging:** Standard `logging` module; prefer module-level `logger = logging.getLogger(__name__)`.
 

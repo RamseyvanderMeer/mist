@@ -6,6 +6,7 @@ supporting text-embedding-3-small and other models.
 """
 
 import os
+import sys
 import logging
 from typing import Union, List
 import numpy as np
@@ -155,8 +156,6 @@ def create_encoder(model: str = "openai/text-embedding-3-small") -> OpenRouterEn
 
 if __name__ == "__main__":
     # Test the encoder
-    import os
-    
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         print("Set OPENROUTER_API_KEY environment variable")

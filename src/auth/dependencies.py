@@ -1,15 +1,17 @@
 """Authentication dependencies and middleware for FastAPI."""
+import logging
 import os
 from typing import Optional, List
 from fastapi import Request, HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 import redis
 
-from src.database.pg_connection import get_db
-from src.models import User, Role, RateLimitTier
+from src.database.pg_connection import get_db, get_db_context
+from src.models import User
+
+logger = logging.getLogger(__name__)
 
 # Redis connection for rate limiting
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -31,6 +33,7 @@ def get_rate_limit_key(request: Request) -> str:
         # Remove 'accounts.google.com:' prefix if present
         if ":" in email:
             email = email.split(":")[-1]
+        email = email.lower().strip()
         return f"ratelimit:{email}"
     
     # Fallback to IP address
@@ -107,6 +110,13 @@ async def get_current_user(
             detail="Account is suspended. Contact support.",
         )
     
+    # Check tier - blocked users (0 requests) cannot use API
+    if user.tier and user.tier.requests_per_minute == 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account tier does not have API access. Please upgrade your plan.",
+        )
+    
     # Update last login
     from datetime import datetime
     user.last_login_at = datetime.utcnow()
@@ -154,6 +164,42 @@ def get_tier_rate_limit(user: User) -> str:
         return "0/minute"  # Blocked
     
     return ",".join(limits)
+
+
+def tier_limit_for_ratelimit_key(key: str) -> str:
+    """
+    Dynamic slowapi limit: must accept a parameter named ``key`` (see slowapi LimitGroup).
+
+    ``key`` is the value from ``get_rate_limit_key(request)`` (email- or IP-based).
+    """
+    ip_prefix = "ratelimit:ip:"
+    if key.startswith(ip_prefix):
+        return os.getenv("RATE_LIMIT_IP_FALLBACK", "1000/minute")
+
+    email_prefix = "ratelimit:"
+    if not key.startswith(email_prefix):
+        return "0/minute"
+
+    email = key[len(email_prefix) :].strip().lower()
+    if not email:
+        return "0/minute"
+
+    try:
+        with get_db_context() as db:
+            user = (
+                db.query(User)
+                .options(joinedload(User.tier))
+                .filter(User.email == email)
+                .first()
+            )
+    except Exception:
+        logger.exception("tier_limit_for_ratelimit_key: DB error for key=%r", key)
+        return "0/minute"
+
+    if not user:
+        return "0/minute"
+
+    return get_tier_rate_limit(user)
 
 
 class RateLimitMiddleware:

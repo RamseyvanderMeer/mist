@@ -38,7 +38,7 @@ YAML configs in `config/`:
 ## API, auth, and data stores
 
 - **FastAPI app:** `src/api/server.py` — registers routes, CORS, rate limiting, and includes `src/auth/routes.py`.
-- **Authentication (typical cloud setup):** Google IAP headers (`X-Goog-Authenticated-User-Email`, `X-Goog-Authenticated-User-Id`) with user rows in **PostgreSQL** (`DATABASE_URL`, models in `src/models/`, session in `src/database/pg_connection.py`). Tier-based rate limits use **slowapi** and optionally **Redis** (`REDIS_URL`). See `src/auth/dependencies.py`.
+- **Authentication (typical cloud setup):** Google IAP headers (`X-Goog-Authenticated-User-Email`, `X-Goog-Authenticated-User-Id`) with user rows in **PostgreSQL** (`DATABASE_URL`, models in `src/models/`, session in `src/database/pg_connection.py`). **`/query` / `/clarify`** limits are **per-user tier** via slowapi’s dynamic limit (`tier_limit_for_ratelimit_key`: DB lookup by rate-limit key) plus optional **Redis** storage (`REDIS_URL`). IP-only clients (no IAP email) use **`RATE_LIMIT_IP_FALLBACK`**. See `src/auth/dependencies.py`.
 - **Feedback and diagnostic telemetry:** **SQLite** at `data/databases/mist_data.db` (via `src/paths.py` / `FeedbackCollector`) — separate from Postgres users.
 - **ISTA diagnostic content:** Large local SQLite (`DiagDocDb_Decrypted.sqlite`) for knowledge graph and grounding — see [DATABASE.md](DATABASE.md).
 

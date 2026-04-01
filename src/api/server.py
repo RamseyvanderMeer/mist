@@ -4,10 +4,7 @@ FastAPI server for MIST API endpoints.
 from fastapi import FastAPI, HTTPException, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-import redis
 from .schemas import (
     QueryRequest, QueryResponse, ClarifyRequest, RatingFeedback,
     RepairOutcomeFeedback, ConversationCorrection, FeedbackStatistics
@@ -17,15 +14,16 @@ from src.feedback.collector import FeedbackCollector
 from src.feedback.analyzer import FeedbackAnalyzer
 from src.api.security import setup_security
 from src.auth.dependencies import (
-    get_current_user, get_current_user_optional, get_tier_rate_limit,
-    require_admin, limiter as auth_limiter
+    get_current_user,
+    require_admin,
+    tier_limit_for_ratelimit_key,
+    limiter as auth_limiter,
 )
 from src.auth.routes import router as auth_router
-from src.database.pg_connection import get_db, pg_engine
+from src.database.pg_connection import pg_engine
 from src.database.init import init_db
 from src.models import Base
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
 import logging
 import os
 from typing import Optional
@@ -228,7 +226,7 @@ async def health_check():
         500: {"description": "Internal Server Error - Query processing failed"}
     }
 )
-@limiter.limit(lambda user: get_tier_rate_limit(user) if hasattr(user, 'tier') else "0/minute")
+@limiter.limit(tier_limit_for_ratelimit_key)
 async def query(
     request: Request,
     query_request: QueryRequest,
@@ -359,7 +357,7 @@ async def query(
         500: {"description": "Processing error"}
     }
 )
-@limiter.limit(lambda user: get_tier_rate_limit(user) if hasattr(user, 'tier') else "0/minute")
+@limiter.limit(tier_limit_for_ratelimit_key)
 async def clarify(
     request: Request,
     clarify_request: ClarifyRequest,

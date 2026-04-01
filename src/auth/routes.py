@@ -34,6 +34,20 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+def user_to_response(user) -> UserResponse:
+    """Convert User model to UserResponse dict."""
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "display_name": user.display_name,
+        "status": user.status,
+        "tier": user.tier.name if user.tier else None,
+        "roles": [role.name for role in user.roles],
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+    }
+
+
 class RoleResponse(BaseModel):
     id: str
     name: str
@@ -49,7 +63,7 @@ class TierResponse(BaseModel):
     description: Optional[str]
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register")
 async def register_user(
     request: Request,
     registration: UserRegistration,
@@ -110,13 +124,13 @@ async def register_user(
     db.commit()
     db.refresh(new_user)
     
-    return new_user
+    return user_to_response(new_user)
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 async def get_me(current_user: User = Depends(get_current_user)):
     """Get current user profile."""
-    return current_user
+    return user_to_response(current_user)
 
 
 @router.get("/check")
@@ -147,7 +161,7 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
 
 
 # Admin endpoints
-@router.get("/admin/users", response_model=List[UserResponse])
+@router.get("/admin/users")
 async def list_users(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -156,10 +170,10 @@ async def list_users(
 ):
     """List all users (admin only)."""
     users = db.query(User).offset(skip).limit(limit).all()
-    return users
+    return [user_to_response(u) for u in users]
 
 
-@router.post("/admin/users/{user_id}/roles", response_model=UserResponse)
+@router.post("/admin/users/{user_id}/roles")
 async def assign_role(
     user_id: str,
     role_name: str,
@@ -188,10 +202,10 @@ async def assign_role(
         db.commit()
         db.refresh(user)
     
-    return user
+    return user_to_response(user)
 
 
-@router.post("/admin/users/{user_id}/tier", response_model=UserResponse)
+@router.post("/admin/users/{user_id}/tier")
 async def set_user_tier(
     user_id: str,
     tier_name: str,
@@ -219,7 +233,7 @@ async def set_user_tier(
     db.commit()
     db.refresh(user)
     
-    return user
+    return user_to_response(user)
 
 
 @router.post("/admin/users/{user_id}/suspend")
@@ -244,7 +258,7 @@ async def suspend_user(
     return {"message": f"User {user.email} suspended"}
 
 
-@router.post("/admin/tiers", response_model=TierResponse)
+@router.post("/admin/tiers")
 async def create_tier(
     name: str,
     requests_per_minute: int,
@@ -273,4 +287,4 @@ async def create_tier(
     db.commit()
     db.refresh(tier)
     
-    return tier
+    return tier.to_dict()
