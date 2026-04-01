@@ -27,6 +27,7 @@ jobs:
       uses: google-github-actions/auth@v2
       with:
         workload_identity_provider: 'projects/33176763769/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+        audience: 'https://github.com/ramseyvandermeer'
         service_account: 'github-actions@mist-487607.iam.gserviceaccount.com'
 
     - name: Set up Cloud SDK
@@ -51,7 +52,7 @@ jobs:
           --max-instances=3
           --min-instances=0
           --service-account=mist-api-sa@mist-487607.iam.gserviceaccount.com
-          --set-secrets=DATABASE_URL=mist-database-url:latest,SAMBANOVA_API_KEY=mist-sambanova-api-key:latest,CHROMADB_API_KEY=mist-chromadb-api-key:latest,CHROMADB_TENANT=mist-chromadb-tenant:latest
+          --set-secrets=DATABASE_URL=mist-database-url:latest,SAMBANOVA_API_KEY=mist-sambanova-api-key:latest,CHROMADB_API_KEY=mist-chromadb-api-key:latest,CHROMADB_TENANT=mist-chromadb-tenant:latest,REDIS_URL=mist-redis-url:latest
           --timeout=300
 
     - name: Show Output
