@@ -262,9 +262,12 @@ class ChromaVectorStore:
             if not chunk_codes:
                 continue
 
-            chunk_filter = {
-                "$or": [{"fault_codes": {"$contains": c}} for c in chunk_codes]
-            }
+            if len(chunk_codes) == 1:
+                chunk_filter = {"fault_codes": {"$contains": chunk_codes[0]}}
+            else:
+                chunk_filter = {
+                    "$or": [{"fault_codes": {"$contains": c}} for c in chunk_codes]
+                }
             if base_where is not None:
                 chunk_where = {"$and": [base_where, chunk_filter]}
             else:
@@ -380,9 +383,23 @@ class ChromaVectorStore:
         conditions = []
         for key, value in filter_dict.items():
             if isinstance(value, list):
-                conditions.append({"$or": [{key: {"$contains": v}} for v in value]})
+                values = []
+                for raw_value in value:
+                    if raw_value is None:
+                        continue
+                    text_value = str(raw_value).strip()
+                    if text_value:
+                        values.append(text_value)
+                if not values:
+                    continue
+                if len(values) == 1:
+                    conditions.append({key: {"$contains": values[0]}})
+                else:
+                    conditions.append({"$or": [{key: {"$contains": v}} for v in values]})
             else:
                 conditions.append({key: {"$eq": value}})
+        if not conditions:
+            return None
         return {"$and": conditions} if len(conditions) > 1 else conditions[0]
 
     def scroll(

@@ -275,6 +275,95 @@ class QueryExpander:
             logger.warning(f"Symptom expansion failed: {e}. Using original description.")
             return symptom
 
+    def generate_clarifying_questions_for_symptom(
+        self,
+        symptom_description: str
+    ) -> List[str]:
+        """
+        Generate clarifying questions for a symptom description.
+
+        Uses the mechanic diagnostic question framework to ask targeted questions
+        that help narrow down vague symptom descriptions to specific repair guides.
+
+        Args:
+            symptom_description: User's symptom/problem description
+
+        Returns:
+            List of clarifying questions (1-4 questions)
+        """
+        if not symptom_description or not symptom_description.strip():
+            return []
+        
+        symptom_description = symptom_description.strip()
+        
+        try:
+            prompt = self.prompt_templates.get_symptom_clarification_prompt(symptom_description)
+            if not prompt:
+                logger.debug("Symptom clarification template not configured")
+                return []
+            
+            messages = [
+                {"role": "system", "content": prompt["system"]},
+                {"role": "user", "content": prompt["user"]},
+            ]
+            
+            provider_config = self._get_provider_config()
+            llm_response = self.llm_provider.generate(
+                messages=messages,
+                temperature=0.7,
+                max_tokens=provider_config.get("max_tokens", 500),
+            )
+            
+            if not llm_response or not llm_response.strip():
+                return []
+            
+            # Parse questions from response
+            questions = self._parse_questions_from_response(llm_response)
+            logger.info(f"Generated {len(questions)} clarifying questions for symptom")
+            return questions
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate clarifying questions: {e}")
+            return []
+
+    def _parse_questions_from_response(self, response: str) -> List[str]:
+        """
+        Parse numbered or bulleted questions from LLM response.
+
+        Args:
+            response: LLM response text
+
+        Returns:
+            List of extracted questions
+        """
+        import re
+        
+        questions = []
+        lines = response.strip().split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Match numbered questions (1., 1), etc.)
+            numbered_match = re.match(r'^\d+[.\)]\s*(.+)', line)
+            if numbered_match:
+                questions.append(numbered_match.group(1).strip())
+                continue
+            
+            # Match bulleted questions (-, *, •)
+            bullet_match = re.match(r'^[-*•]\s*(.+)', line)
+            if bullet_match:
+                questions.append(bullet_match.group(1).strip())
+                continue
+            
+            # If line ends with question mark, treat as question
+            if line.endswith('?'):
+                questions.append(line)
+        
+        return questions
+
     def _get_provider_config(self) -> Dict[str, Any]:
         """
         Get configuration for the active provider.

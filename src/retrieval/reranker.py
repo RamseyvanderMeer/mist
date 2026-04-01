@@ -94,11 +94,9 @@ class Reranker:
         
         if self.provider == "cohere":
             self._init_cohere()
-        elif self.provider == "local":
-            self._init_local()
         else:
             raise RerankerConfigurationError(
-                f"Invalid provider: {self.provider}. Must be 'cohere' or 'local'"
+                f"Invalid provider: {self.provider}. Only 'cohere' is supported (API-only mode)"
             )
     
     def _load_config(self, config: Optional[Union[Dict[str, Any], Path, str]]) -> Dict[str, Any]:
@@ -247,17 +245,11 @@ class Reranker:
         try:
             import cohere
         except ImportError:
-            logger.warning("cohere package not installed, falling back to local model")
-            self.provider = "local"
-            self._init_local()
-            return
+            raise RerankerModelError("cohere package not installed. Run: pip install cohere")
         
         api_key = self._load_api_key()
         if not api_key:
-            logger.warning("Cohere API key not found, falling back to local model")
-            self.provider = "local"
-            self._init_local()
-            return
+            raise RerankerModelError("Cohere API key not found. Set COHERE_API_KEY environment variable.")
         
         try:
             self.client = cohere.Client(api_key=api_key)
@@ -265,26 +257,6 @@ class Reranker:
         except Exception as e:
             logger.error(f"Failed to initialize Cohere client: {e}")
             raise RerankerModelError(f"Failed to initialize Cohere client: {e}") from e
-    
-    def _init_local(self) -> None:
-        """
-        Initialize local cross-encoder model.
-        
-        Raises:
-            RerankerModelError: If model loading fails
-        """
-        try:
-            from sentence_transformers import CrossEncoder
-            self.model = CrossEncoder(self.model_name)
-            logger.info(f"Loaded local reranker: {self.model_name}")
-        except ImportError:
-            logger.error("sentence-transformers package not installed")
-            raise RerankerModelError(
-                "sentence-transformers package is required for local reranking"
-            ) from None
-        except Exception as e:
-            logger.error(f"Failed to load reranker model: {e}")
-            raise RerankerModelError(f"Failed to load reranker model: {e}") from e
     
     def _normalize_scores(self, scores: np.ndarray) -> np.ndarray:
         """

@@ -19,7 +19,7 @@ from src.retrieval.reranker import Reranker, RerankerAPIError, RerankerModelErro
 from src.retrieval.ranker import Ranker, RankerError
 from src.knowledge.graph_query import KnowledgeGraphQuery
 from src.feedback.collector import FeedbackCollector
-from src.embeddings.fault_code_encoder import FaultCodeEncoder
+from src.embeddings.qwen3_encoder import Qwen3Encoder
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,60 @@ logger = logging.getLogger(__name__)
 class EnhancedRetrieverError(Exception):
     """Base exception for EnhancedRetriever errors."""
     pass
+
+
+def _clean_response_text(text: str) -> str:
+    """
+    Clean CSS, JavaScript, and XML noise from response text.
+    
+    This is applied to text retrieved from ChromaDB to remove
+    formatting artifacts that were stored during indexing.
+    
+    Args:
+        text: Raw text from database
+        
+    Returns:
+        Cleaned text suitable for display
+    """
+    if not text:
+        return text
+    
+    import re
+    
+    # Remove @media rules and their content (non-greedy match for nested braces)
+    text = re.sub(r"@media\s+[^{]+\{[^{}]*\}", " ", text)
+    
+    # Remove CSS class/id definitions (.classname { ... } or #id { ... })
+    text = re.sub(r"[.#][a-zA-Z_-][a-zA-Z0-9_-]*\s*\{[^}]*\}", " ", text)
+    
+    # Remove standalone CSS blocks (just { ... })
+    text = re.sub(r"\{[^}]*\}", " ", text)
+    
+    # Remove JavaScript function definitions (multi-line)
+    text = re.sub(r"function\s+\w+\s*\([^)]*\)\s*\{[^}]*\}", " ", text, flags=re.DOTALL)
+    text = re.sub(r"var\s+\w+\s*=\s*[^;]+;", " ", text)
+    text = re.sub(r"if\s*\([^)]+\)\s*\{[^}]*\}", " ", text, flags=re.DOTALL)
+    text = re.sub(r"return\s+[^;]+;", " ", text)
+    text = re.sub(r"document\.write\([^)]+\);", " ", text)
+    
+    # Remove XML/HTML tags
+    text = re.sub(r"<[^>]+>", " ", text)
+    
+    # Remove backslash escapes
+    text = re.sub(r"\\x3c", " ", text)
+    text = re.sub(r"\\x3e", " ", text)
+    text = re.sub(r"\\x3d", " ", text)
+    text = re.sub(r"\\", " ", text)
+    
+    # Remove common CSS property names that appear standalone
+    css_props = ['font-family', 'font-size', 'font-weight', 'color', 'text-decoration', 'text-align']
+    for prop in css_props:
+        text = re.sub(rf"\b{prop}\b[^;]*;?", " ", text)
+    
+    # Normalize whitespace
+    text = re.sub(r"\s+", " ", text).strip()
+    
+    return text
 
 
 class EnhancedRetriever:
@@ -110,22 +164,8 @@ class EnhancedRetriever:
                 logger.warning(f"Failed to initialize FeedbackCollector: {e}. Continuing without feedback.")
                 self.feedback_collector = None
             
-            # FaultCodeEncoder - must match index (procedure text encoded with is_query=False)
-            # Query uses is_query=True for E5 asymmetric retrieval
-            embedding_config_path = paths.embedding_config
-            embedding_config = {}
-            if embedding_config_path.exists():
-                try:
-                    with open(embedding_config_path, 'r', encoding='utf-8') as f:
-                        embedding_config = yaml.safe_load(f) or {}
-                except Exception as e:
-                    logger.warning(f"Failed to load embedding config: {e}. Using defaults.")
-            fc_config = embedding_config.get("models", {}).get("fault_code", {})
-            self.encoder = FaultCodeEncoder(
-                model_name=fc_config.get("model_name", "intfloat/e5-mistral-7b-instruct"),
-                device=fc_config.get("device", "auto"),
-                projection_dim=fc_config.get("projection_dim", 1024),
-            )
+            # Qwen3Encoder - matches our indexed embeddings
+            self.encoder = Qwen3Encoder(output_dim=4096)
             
             logger.info(
                 f"Initialized EnhancedRetriever: initial_k={self.initial_k}, "
@@ -207,6 +247,11 @@ class EnhancedRetriever:
         
         # Stage 4: Combined scoring
         ranked_results = self._stage4_combined_scoring(candidates, kg_scores)
+        
+        # Clean text in results (remove CSS/JS noise stored in ChromaDB)
+        for result in ranked_results:
+            if "text" in result:
+                result["text"] = _clean_response_text(result["text"])
         
         # Return top_k results
         return ranked_results[:top_k]
