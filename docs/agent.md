@@ -7,6 +7,8 @@
 | Need | Doc |
 |------|-----|
 | Cursor/IDE setup, run, test | [AGENTS.md](../AGENTS.md) |
+| **Repo spec (paths, flows, stack) — read first for code work** | [SPEC.md](SPEC.md) |
+| **AI placement, safety, conventions** | [REPO_RULES_FOR_AI.md](REPO_RULES_FOR_AI.md) |
 | Project overview & setup | [README.md](../README.md) |
 | Architecture & getting started | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | BMW ISTA database | [DATABASE.md](DATABASE.md), [ISTA_DATABASE_GUIDE.md](ISTA_DATABASE_GUIDE.md) |
@@ -23,6 +25,8 @@
 
 | File | Description |
 |------|-------------|
+| [SPEC.md](SPEC.md) | Concise path-grounded spec: stack, structure, flows, gotchas |
+| [REPO_RULES_FOR_AI.md](REPO_RULES_FOR_AI.md) | Rules for AI: file placement, testing, safety, doc updates |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture, components, config, API, getting started |
 | [DATABASE.md](DATABASE.md) | BMW ISTA database overview, tables, paths, access |
 | [ISTA_DATABASE_GUIDE.md](ISTA_DATABASE_GUIDE.md) | Document hierarchy, Process Analysis, preliminary tasks |
@@ -46,6 +50,8 @@
 ```
 e:\mist\AGENTS.md
 e:\mist\README.md
+e:\mist\docs\SPEC.md
+e:\mist\docs\REPO_RULES_FOR_AI.md
 e:\mist\docs\ARCHITECTURE.md
 e:\mist\docs\DATABASE.md
 e:\mist\docs\ISTA_DATABASE_GUIDE.md

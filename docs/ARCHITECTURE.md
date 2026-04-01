@@ -35,16 +35,27 @@ YAML configs in `config/`:
 - `llm_config.yaml` – LLM provider and model selection
 - `training_config.yaml` – Fine-tuning hyperparameters
 
+## API, auth, and data stores
+
+- **FastAPI app:** `src/api/server.py` — registers routes, CORS, rate limiting, and includes `src/auth/routes.py`.
+- **Authentication (typical cloud setup):** Google IAP headers (`X-Goog-Authenticated-User-Email`, `X-Goog-Authenticated-User-Id`) with user rows in **PostgreSQL** (`DATABASE_URL`, models in `src/models/`, session in `src/database/pg_connection.py`). Tier-based rate limits use **slowapi** and optionally **Redis** (`REDIS_URL`). See `src/auth/dependencies.py`.
+- **Feedback and diagnostic telemetry:** **SQLite** at `data/databases/mist_data.db` (via `src/paths.py` / `FeedbackCollector`) — separate from Postgres users.
+- **ISTA diagnostic content:** Large local SQLite (`DiagDocDb_Decrypted.sqlite`) for knowledge graph and grounding — see [DATABASE.md](DATABASE.md).
+
+For a path-indexed summary and gotchas, see [SPEC.md](SPEC.md).
+
 ## API Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/query` | POST | Process fault codes + OBD data |
 | `/clarify` | POST | Provide clarification responses |
+| `/auth/*` | various | Registration and auth (see `src/auth/routes.py`) |
 | `/feedback/rating` | POST | Submit rating |
 | `/feedback/outcome` | POST | Submit repair outcome |
 | `/feedback/correction` | POST | Submit corrections |
-| `/feedback/statistics` | GET | Feedback stats |
+| `/feedback/statistics` | GET | Feedback stats (admin) |
+| `/feedback/{session_id}` | GET | Session feedback (admin) |
 | `/health` | GET | Health check |
 
 ## Getting Started

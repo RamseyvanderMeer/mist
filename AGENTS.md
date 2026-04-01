@@ -6,6 +6,8 @@
 
 For full project documentation, see [docs/agent.md](docs/agent.md). It indexes all .md files by topic (architecture, databases, scraping, training, etc.) for quick lookup.
 
+For **path-grounded architecture and flows** (optimized for AI onboarding), read [docs/SPEC.md](docs/SPEC.md) and [docs/REPO_RULES_FOR_AI.md](docs/REPO_RULES_FOR_AI.md). Cursor loads `.cursor/rules/` including pre/post context gates that reference these files.
+
 ### Project overview
 
 MIST (Multi-modal Intelligent Service Technician) is a Python 3.12 FastAPI application for AI-powered automotive diagnostics. See `README.md` for full details.

@@ -66,6 +66,30 @@ Some ISTA procedures have `TITLE_ENGB = "-"` or empty. ChromaDB stores this as-i
    already exists, so runs with repeated `--seed-only` no longer spend time
    re-running table/index DDL checks each invocation.
 8. **Docs** – Add this investigation doc and link from `docs/agent.md`.
+9. **Chroma predicate edge case fixed** – `src/retrieval/chroma_store.py`
+   now avoids single-item `$or` clauses for list predicates, fixing
+   `Expected where value for $and or $or to be a list with at least two where expressions`
+   errors for single fault-code searches.
+10. **LLM-gated DB matching in matcher script** – `scripts/match_repair_guides.py`
+    now supports `--llm-gating`, `--llm-min-confidence`, and `--dry-run`.
+    Match reasoning and gating use `OPENAI_API_KEY` and `OPENAI_MODEL` for
+    inference.
+    When gating is enabled, only matches above the LLM relevance threshold are
+    persisted to `scraped_records` (no wrong high-similarity-only saves).
+11. **Batched DB matching** – `scripts/match_repair_guides.py` now processes
+   `scraped_records` in `--batch-size` chunks (default 200) instead of loading
+   the entire table before matching, preventing startup stalls on large datasets.
+12. **Visibility while gated matching runs** – DB matching now logs batch and row
+   heartbeat progress (`--log-every`) so `--llm-gating` runs do not look stalled
+   while waiting for per-record LLM / Chroma calls.
+13. **Additional detailed match diagnostics** – Added `--match-verbose` for row-level
+   trace logs showing embedding/search/GPT-gating progress inside each candidate match.
+14. **DB query heartbeat** – Batch fetch now logs when each DB batch query starts and
+    reports elapsed query duration, so stalls in batch fetch vs matching can be distinguished.
+15. **Neon connection hardening for matcher** – `scripts/match_repair_guides.py` now
+   creates connections with pooling health checks and retries the initial DB connect on
+   transient errors, which addresses repeated `SSL SYSCALL error`/`server closed the
+   connection unexpectedly` startup failures in `process_from_db`.
 
 ## Further Work and status
 
