@@ -34,13 +34,13 @@ jobs:
 
     - name: Build and Push Container
       run: |
-        # Start async build
-        BUILD_ID=$(gcloud builds submit --async --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest . --format='value(id)')
+        # Start async build with latest tag
+        BUILD_ID=$(gcloud builds submit --async --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest . --format='value(id)')
         echo "Started build: $BUILD_ID"
         
         # Poll for build completion
         echo "Waiting for build to complete..."
-        for i in {1..60}; do
+        for i in {1..90}; do
           STATUS=$(gcloud builds describe $BUILD_ID --format='value(status)')
           echo "Build status: $STATUS"
           if [ "$STATUS" = "SUCCESS" ]; then
@@ -59,7 +59,7 @@ jobs:
       with:
         service: ${{ env.SERVICE_NAME }}
         region: ${{ env.REGION }}
-        image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+        image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
         flags: |
           --memory=2Gi
           --cpu=1
