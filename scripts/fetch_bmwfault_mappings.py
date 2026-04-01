@@ -16,6 +16,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import random
 import re
 import sqlite3
 import sys
@@ -33,11 +34,17 @@ except ImportError:
     pass
 
 BATCH_SIZE = 10
-REQUEST_DELAY_SEC = 5  # delay between P-codes
+REQUEST_DELAY_SEC = 5  # base delay between P-codes
+REQUEST_DELAY_JITTER = 3  # random jitter added to delay (0 to N seconds)
 DIAGVIEW_DELAY_SEC = 3  # delay between DiagView fetches
 RATE_LIMIT_WAIT_BASE_SEC = 540   # 9 min
 RATE_LIMIT_BACKOFF_FACTOR = 3    # 9 -> 27 -> 81 min
 BLOCKED_WAIT_SEC = 600           # 10 min for IP block (matches VPN IP rotation ~5–10 min)
+
+
+def _get_random_delay() -> float:
+    """Get random delay with jitter to appear more human-like."""
+    return REQUEST_DELAY_SEC + random.uniform(0, REQUEST_DELAY_JITTER)
 
 LOOKUP_URL = "https://bmwfault.codes/Lookup"
 DIAGVIEW_BASE = "https://bmwfault.codes/DiagView"
@@ -108,9 +115,10 @@ def _get_cookies() -> str | None:
 
 
 def _get_proxies() -> dict[str, str] | None:
-    """Get proxy config from BMWFAULT_PROXY, or HTTP_PROXY/HTTPS_PROXY. Returns dict for requests."""
+    """Get proxy config from DATAIMPULSE_PROXY, BMWFAULT_PROXY, or HTTP_PROXY/HTTPS_PROXY. Returns dict for requests."""
     proxy = (
-        os.environ.get("BMWFAULT_PROXY")
+        os.environ.get("DATAIMPULSE_PROXY")
+        or os.environ.get("BMWFAULT_PROXY")
         or os.environ.get("bmwfault_proxy")
         or os.environ.get("HTTP_PROXY")
         or os.environ.get("HTTPS_PROXY")
@@ -225,6 +233,7 @@ def _parse_hex_codes_from_rows(rows: list[tuple[str, str, str, str, str, str]]) 
 
 
 def _fetch_diagview(session, diag_view_id: str) -> dict[str, str] | None:
+    print(f"Fetching DiagView for ID: {diag_view_id}")
     """Fetch DiagView page and return parsed fault info JSON."""
     url = f"{DIAGVIEW_BASE}?id={diag_view_id}"
     try:
@@ -507,6 +516,78 @@ def _load_codes_from_db(limit: int | None = None, verbose: bool = False) -> list
     return fallback[:limit] if limit else fallback
 
 
+def _get_already_fetched_pcodes() -> set[str]:
+    """Get set of P-codes already in the database."""
+    db_path = _get_mist_db_path()
+    if not db_path.exists():
+        return set()
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.execute("SELECT DISTINCT pcode FROM bmwfault_pcodes")
+        pcodes = set(row[0].upper() for row in cursor.fetchall())
+        conn.close()
+        return pcodes
+    except Exception:
+        return set()
+
+
+def _get_no_results_pcodes() -> set[str]:
+    """Get set of P-codes that returned no results (to skip)."""
+    db_path = _get_mist_db_path()
+    if not db_path.exists():
+        return set()
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.execute("SELECT pcode FROM bmwfault_attempted_pcodes WHERE status = 'no_results'")
+        pcodes = set(row[0].upper() for row in cursor.fetchall())
+        conn.close()
+        return pcodes
+    except Exception:
+        return set()
+
+
+def _mark_pcode_attempted(pcode: str, status: str) -> None:
+    """Mark a P-code as attempted with given status."""
+    db_path = _get_mist_db_path()
+    try:
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("""
+            INSERT INTO bmwfault_attempted_pcodes (pcode, status, attempts)
+            VALUES (?, ?, 1)
+            ON CONFLICT(pcode) DO UPDATE SET
+                status = excluded.status,
+                attempts = bmwfault_attempted_pcodes.attempts + 1,
+                last_attempt = CURRENT_TIMESTAMP
+        """, (pcode.upper(), status))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
+def _create_new_session(cookies_str: str) -> tuple:
+    """Create a new session with fresh proxy connection."""
+    import requests
+    session = requests.Session()
+    session.headers.update({
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/145.0.0.0 Safari/537.36",
+        "referer": "https://bmwfault.codes/Lookup",
+    })
+    proxies = _get_proxies()
+    if proxies:
+        session.proxies.update(proxies)
+    for part in cookies_str.split(";"):
+        part = part.strip()
+        if "=" in part:
+            name, _, value = part.partition("=")
+            session.cookies.set(name.strip(), value.strip(), domain=".bmwfault.codes")
+    r = session.get(LOOKUP_URL, timeout=15)
+    r.raise_for_status()
+    token = _extract_verification_token(r.text)
+    return session, token
+
+
 def run(
     codes: list[str] | None = None,
     limit: int | None = None,
@@ -523,6 +604,24 @@ def run(
         codes = codes[:limit]
     if _VERBOSE and codes:
         print(f"[Fetch] {len(codes)} P-codes to process")
+    
+    # Get already fetched P-codes and filter them out
+    already_fetched = _get_already_fetched_pcodes()
+    if already_fetched:
+        codes = [c for c in codes if c.upper() not in already_fetched]
+        print(f"[Fetch] Skipping {len(already_fetched)} already fetched P-codes")
+    
+    # Get P-codes that returned no results and filter them out
+    no_results = _get_no_results_pcodes()
+    if no_results:
+        codes = [c for c in codes if c.upper() not in no_results]
+        print(f"[Fetch] Skipping {len(no_results)} P-codes with no results")
+        print(f"[Fetch] {len(codes)} P-codes remaining to process")
+    
+    if not codes:
+        print("[Fetch] All P-codes already fetched or had no results!")
+        return 0
+    
     cookies_str = _get_cookies()
     if not cookies_str:
         print("Set CLOUDFLARE_COOKIES in .env or create data/bmwfault_cookies.txt")
@@ -534,6 +633,7 @@ def run(
         conn.close()
     api_key = os.environ.get("CAPSOLVER_API_KEY") or os.environ.get("capsolver_api_key", "").strip('"\'')
     last_pcode = _load_checkpoint()
+    # Skip until we pass the checkpoint
     skip_until_passed = bool(last_pcode)
     if last_pcode:
         print(f"Resuming from checkpoint (last: {last_pcode})")
@@ -565,46 +665,82 @@ def run(
         print("No verification token - try --refresh-cookies")
         return 1
     saved = 0
+    failed_pcodes = []  # Track P-codes that failed after max rotations
+    
+    # Handle checkpoint: find starting position
+    if skip_until_passed and last_pcode:
+        # Find the index of the first code that comes after last_pcode
+        start_idx = 0
+        for idx, c in enumerate(codes):
+            if c.upper() > last_pcode.upper():
+                start_idx = idx
+                break
+        codes = codes[start_idx:]
+        print(f"Starting from {codes[0] if codes else 'end'} ({len(codes)} codes remaining)")
+    
     for i, pcode in enumerate(codes):
         pcode = pcode.strip().upper()
         if not pcode.startswith("P"):
             continue
-        if skip_until_passed:
-            if pcode == last_pcode:
-                skip_until_passed = False
-            continue
         attempt = 0
+        max_rotations = 5  # Max IP rotations before giving up
         while True:
             try:
                 rows, r_text = _run_http_for_pcode(session, pcode, token, api_key, fetch_diagview=fetch_diagview)
                 if _is_rate_limited(r_text):
-                    wait_sec = RATE_LIMIT_WAIT_BASE_SEC * (RATE_LIMIT_BACKOFF_FACTOR ** attempt)
-                    print(f"[{pcode}] Rate limited, waiting {wait_sec // 60} min (attempt {attempt + 1})...")
-                    time.sleep(wait_sec)
-                    attempt += 1
-                    continue
+                    if attempt < max_rotations:
+                        wait_time = random.uniform(2, 5)
+                        print(f"[{pcode}] Rate limited, waiting {wait_time:.1f}s then rotating IP (attempt {attempt + 1}/{max_rotations})...")
+                        time.sleep(wait_time)
+                        session, token = _create_new_session(cookies_str)
+                        attempt += 1
+                        continue
+                    else:
+                        print(f"[{pcode}] Rate limited after {max_rotations} IP rotations, skipping...")
+                        failed_pcodes.append(pcode)
+                        rows, r_text = [], ""
+                        break
                 if _is_blocked(r_text):
-                    wait_sec = BLOCKED_WAIT_SEC  # fixed 10 min for VPN IP rotation
-                    print(f"[{pcode}] IP blocked, waiting {wait_sec // 60} min for VPN rotation (attempt {attempt + 1})...")
-                    time.sleep(wait_sec)
-                    attempt += 1
-                    continue
+                    if attempt < max_rotations:
+                        wait_time = random.uniform(3, 8)
+                        print(f"[{pcode}] IP blocked, waiting {wait_time:.1f}s then rotating IP (attempt {attempt + 1}/{max_rotations})...")
+                        time.sleep(wait_time)
+                        session, token = _create_new_session(cookies_str)
+                        attempt += 1
+                        continue
+                    else:
+                        print(f"[{pcode}] IP blocked after {max_rotations} rotations, skipping...")
+                        failed_pcodes.append(pcode)
+                        rows, r_text = [], ""
+                        break
                 break
             except RuntimeError as e:
                 if "Turnstile solve failed" in str(e):
-                    wait_sec = RATE_LIMIT_WAIT_BASE_SEC * (RATE_LIMIT_BACKOFF_FACTOR ** attempt)
-                    print(f"[{pcode}] Capsolver failed, waiting {wait_sec // 60} min before retry (attempt {attempt + 1})...")
-                    time.sleep(wait_sec)
-                    attempt += 1
-                    continue
+                    if attempt < max_rotations:
+                        wait_time = random.uniform(2, 6)
+                        print(f"[{pcode}] Capsolver failed, waiting {wait_time:.1f}s then rotating IP (attempt {attempt + 1}/{max_rotations})...")
+                        time.sleep(wait_time)
+                        session, token = _create_new_session(cookies_str)
+                        attempt += 1
+                        continue
+                    else:
+                        print(f"[{pcode}] Capsolver failed after {max_rotations} rotations, skipping...")
+                        failed_pcodes.append(pcode)
+                        rows, r_text = [], ""
+                        break
                 raise
             except requests.exceptions.HTTPError as e:
                 if e.response is not None and e.response.status_code == 429:
-                    wait_sec = RATE_LIMIT_WAIT_BASE_SEC * (RATE_LIMIT_BACKOFF_FACTOR ** attempt)
-                    print(f"[{pcode}] HTTP 429 rate limited, waiting {wait_sec // 60} min (attempt {attempt + 1})...")
-                    time.sleep(wait_sec)
-                    attempt += 1
-                    continue
+                    if attempt < max_rotations:
+                        print(f"[{pcode}] HTTP 429, rotating IP (attempt {attempt + 1}/{max_rotations})...")
+                        session, token = _create_new_session(cookies_str)
+                        attempt += 1
+                        continue
+                    else:
+                        print(f"[{pcode}] HTTP 429 after {max_rotations} rotations, skipping...")
+                        failed_pcodes.append(pcode)
+                        rows, r_text = [], ""
+                        break
                 print(f"[{pcode}] HTTP Error: {e}")
                 rows, r_text = [], ""
                 break
@@ -622,6 +758,7 @@ def run(
             print(f"  {pcode} -> {','.join(hexes)} ({len(rows)} rows)")
             _save_pcodes_to_db(rows)
             saved += len(rows)
+            _mark_pcode_attempted(pcode, 'success')
         else:
             # Debug: if page has error alert, save for inspection (possible rate limit missed)
             if r_text and "alert-danger" in r_text and _VERBOSE:
@@ -629,16 +766,36 @@ def run(
                 debug_path.write_text(r_text, encoding="utf-8")
                 print(f"  [debug] Saved empty response with alert to {debug_path}")
             print(f"  [{pcode}] No results")
+            _mark_pcode_attempted(pcode, 'no_results')
         _save_checkpoint(pcode)
         if not token:
             r = session.get(LOOKUP_URL, timeout=15)
             r.raise_for_status()
             token = _extract_verification_token(r.text)
         if i < len(codes) - 1:
-            time.sleep(REQUEST_DELAY_SEC)
+            delay = _get_random_delay()
+            if _VERBOSE:
+                _v(f"Waiting {delay:.1f}s before next request...")
+            time.sleep(delay)
     _refresh_bmwfault_mappings_from_pcodes()
     if saved:
         print(f"\nSaved {saved} rows to bmwfault_pcodes, refreshed bmwfault_mappings")
+    
+    # Report failed P-codes
+    if failed_pcodes:
+        print(f"\n{'='*60}")
+        print(f"FAILED P-CODES ({len(failed_pcodes)} total):")
+        print(f"{'='*60}")
+        for fp in failed_pcodes:
+            print(f"  {fp}")
+        print(f"\nThese P-codes failed after {max_rotations} IP rotations.")
+        print("You may need to manually index these or retry later.")
+        
+        # Save to file for easy reference
+        failed_file = ROOT / "data" / "bmwfault_failed_pcodes.txt"
+        failed_file.write_text("\n".join(failed_pcodes), encoding="utf-8")
+        print(f"\nSaved failed P-codes to: {failed_file}")
+    
     return 0
 
 

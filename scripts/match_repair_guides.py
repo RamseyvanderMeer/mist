@@ -18,10 +18,10 @@ import re
 import sys
 import json
 import os
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import logging
-from collections import defaultdict
 import numpy as np
 import yaml
 from dotenv import load_dotenv
@@ -34,6 +34,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from embeddings.fault_code_encoder import FaultCodeEncoder
 from retrieval.vector_store import VectorStore
 from paths import get_paths
+from llm.openai_client import OpenAIClient
 
 # Load environment variables
 load_dotenv(ROOT / ".env")
@@ -78,13 +79,15 @@ class ReasoningGenerator:
             return
         try:
             with open(self._config_path, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
-            gemini_config = config.get("gemini", {})
-            gemini_config.setdefault("model", "gemini-2.0-flash")
-            gemini_config.setdefault("temperature", 0.3)
-            gemini_config.setdefault("max_tokens", 512)
-            from llm.gemini_client import GeminiClient
-            self._client = GeminiClient(gemini_config)
+                config = yaml.safe_load(f) or {}
+            openai_config = dict(config.get("openai", {}) or {})
+            openai_config["api_key_env"] = "OPENAI_API_KEY"
+            openai_config["model"] = os.getenv(
+                "OPENAI_MODEL", openai_config.get("model", "gpt-4o")
+            )
+            openai_config.setdefault("temperature", 0.3)
+            openai_config.setdefault("max_tokens", 512)
+            self._client = OpenAIClient(openai_config)
         except Exception as e:
             logger.warning("Could not initialize LLM for reasoning: %s", e)
             self._client = None
@@ -148,6 +151,10 @@ class RepairGuideMatcher:
         min_similarity: float = 0.6,
         top_k: int = 5,
         generate_reasoning: bool = False,
+        llm_gating: bool = False,
+        llm_min_confidence: float = 0.7,
+        log_every: int = 25,
+        verbose: bool = False,
     ):
         """
         Initialize matcher.
@@ -156,11 +163,19 @@ class RepairGuideMatcher:
             min_similarity: Minimum similarity score to accept a match (0.0-1.0)
             top_k: Number of candidates to retrieve from vector database
             generate_reasoning: If True, generate match_reasoning (context + verification questions) via LLM
+            llm_gating: If True, require LLM relevance score to accept a match.
+            llm_min_confidence: Minimum relevance score required when llm_gating is enabled.
         """
         self.min_similarity = min_similarity
         self.top_k = top_k
         self.generate_reasoning = generate_reasoning
-        self._reasoning_generator = ReasoningGenerator() if generate_reasoning else None
+        self.llm_gating = llm_gating
+        self.llm_min_confidence = max(0.0, min(1.0, llm_min_confidence))
+        self.log_every = max(1, int(log_every))
+        self.verbose = verbose
+        self._reasoning_generator = (
+            ReasoningGenerator() if (generate_reasoning or llm_gating) else None
+        )
 
         # Initialize encoder and vector store (must match indexer config for dimension)
         paths = get_paths()
@@ -194,12 +209,17 @@ class RepairGuideMatcher:
             'similarity_scores': [],
             'zero_results': 0,  # Vector search returned no results
             'below_threshold_scores': [],  # Top score when results exist but < threshold (sample)
+            'llm_gating_enabled': 0,
+            'llm_gating_passed': 0,
+            'llm_gating_rejected': 0,
+            'llm_gating_failures': 0,
         }
     
     def match_repair_guide(
         self,
         repair_summary: str,
-        fault_codes: Optional[List[str]] = None
+        fault_codes: Optional[List[str]] = None,
+        symptoms: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Match repair summary to a repair guide using vector database.
@@ -207,6 +227,7 @@ class RepairGuideMatcher:
         Args:
             repair_summary: Repair summary text from scraped data
             fault_codes: Optional list of fault codes for filtering
+            symptoms: Optional symptom text for LLM-guided verification
         
         Returns:
             Dict with matched repair guide info or None if no good match
@@ -218,6 +239,14 @@ class RepairGuideMatcher:
         if not repair_summary:
             return None
         
+        summary_excerpt = repair_summary[:120].replace("\n", " ")
+        if self.verbose:
+            logger.info(
+                "Matching summary: excerpt=%r, fault_codes=%s",
+                summary_excerpt,
+                fault_codes or [],
+            )
+        encode_start = time.perf_counter()
         try:
             # Generate embedding for repair summary
             embedding = self.encoder.encode(repair_summary, normalize=True)
@@ -226,7 +255,10 @@ class RepairGuideMatcher:
             if embedding.dim() > 1:
                 embedding = embedding.squeeze(0)
             embedding_np = embedding.detach().cpu().numpy()
+            if self.verbose:
+                logger.info("Encoded summary in %.2fs", time.perf_counter() - encode_start)
             
+            search_start = time.perf_counter()
             # Search vector database. Use fault_codes filter if available, but fall back to
             # unfiltered search when filter returns 0 results (many repair guides have empty
             # fault_codes or scraped codes may not match ISTA format).
@@ -247,6 +279,13 @@ class RepairGuideMatcher:
             if not results:
                 self.stats['zero_results'] += 1
                 return None
+            if self.verbose:
+                logger.info(
+                    "Vector search returned %s candidates in %.2fs (filter=%s)",
+                    len(results),
+                    time.perf_counter() - search_start,
+                    "with_filters" if filter_dict else "none",
+                )
             
             best_score = results[0]['score']
             if best_score < self.min_similarity:
@@ -255,7 +294,86 @@ class RepairGuideMatcher:
                     self.stats['below_threshold_scores'].append(best_score)
                 return None
             
-            best_match = results[0]
+            candidates = results[: min(self.top_k, len(results))]
+            best_match: Optional[Dict[str, Any]] = None
+            if self.verbose:
+                logger.info(
+                    "Top-%s candidates: %s",
+                    len(candidates),
+                    [
+                        {
+                            "title": c.get("title") or c.get("procedure_name", ""),
+                            "score": round(c.get("score", 0.0), 4),
+                        }
+                        for c in candidates
+                    ],
+                )
+
+            if self.llm_gating:
+                self.stats['llm_gating_enabled'] += 1
+                if not self._reasoning_generator:
+                    self.stats['llm_gating_failures'] += 1
+                    return None
+                for candidate in candidates:
+                    if self.verbose:
+                        logger.info(
+                            "Evaluating LLM gating for candidate: title=%r, score=%s",
+                            candidate.get("title") or candidate.get("procedure_name", ""),
+                            round(candidate.get("score", 0.0), 4),
+                        )
+                    reasoning = self._reasoning_generator.generate(
+                        repair_summary=repair_summary,
+                        guide_title=candidate.get('title') or candidate.get('procedure_name', ''),
+                        guide_text=candidate.get('text', ''),
+                        fault_codes=fault_codes or None,
+                        symptoms=symptoms,
+                    )
+                    if not reasoning:
+                        self.stats['llm_gating_failures'] += 1
+                        continue
+                    relevance = reasoning.get("relevance_score")
+                    if relevance is None:
+                        self.stats['llm_gating_failures'] += 1
+                        continue
+                    try:
+                        relevance = float(relevance)
+                    except (TypeError, ValueError):
+                        self.stats['llm_gating_failures'] += 1
+                        continue
+                    candidate["llm_relevance_score"] = relevance
+                    candidate["match_reasoning"] = reasoning
+                    if relevance >= self.llm_min_confidence:
+                        if (
+                            best_match is None
+                            or relevance > best_match.get("llm_relevance_score", 0.0)
+                        ):
+                            best_match = candidate
+                if best_match is None:
+                    self.stats['llm_gating_rejected'] += 1
+                    if self.verbose:
+                        logger.info("LLM gating rejected candidate set.")
+                    return None
+                self.stats['llm_gating_passed'] += 1
+            else:
+                best_match = candidates[0]
+                if self.verbose:
+                    logger.info(
+                        "LLM gating disabled; using top candidate score=%s",
+                        round(best_match.get("score", 0.0), 4),
+                    )
+                if self.generate_reasoning and self._reasoning_generator:
+                    best_match["match_reasoning"] = self._reasoning_generator.generate(
+                        repair_summary=repair_summary,
+                        guide_title=best_match.get('title') or best_match.get('procedure_name', ''),
+                        guide_text=best_match.get('text', ''),
+                        fault_codes=fault_codes or None,
+                        symptoms=symptoms,
+                    )
+                    if not best_match["match_reasoning"]:
+                        best_match["match_reasoning"] = None
+
+            if best_match is None:
+                return None
             score = best_match['score']
             self.stats['similarity_scores'].append(score)
             if score >= 0.75:
@@ -269,11 +387,14 @@ class RepairGuideMatcher:
                 'procedure_id': best_match.get('procedure_id', ''),
                 'similarity_score': score,
                 'text': best_match.get('text', '')[:500],  # First 500 chars
+                'llm_relevance_score': best_match.get('llm_relevance_score'),
+                'match_reasoning': best_match.get('match_reasoning'),
                 'all_candidates': [
                     {
                         'title': r.get('title') or r.get('procedure_name', ''),
                         'procedure_id': r.get('procedure_id', ''),
-                        'score': r['score']
+                        'score': r['score'],
+                        'llm_relevance_score': r.get('llm_relevance_score'),
                     }
                     for r in results[:3]  # Top 3 candidates
                 ]
@@ -309,7 +430,11 @@ class RepairGuideMatcher:
         fault_codes = record.get('fault_codes', [])
         
         # Match to repair guide
-        match = self.match_repair_guide(repair_summary, fault_codes)
+        match = self.match_repair_guide(
+            repair_summary=repair_summary,
+            fault_codes=fault_codes,
+            symptoms=record.get('symptoms'),
+        )
         
         if match:
             self.stats['matched'] += 1
@@ -317,23 +442,12 @@ class RepairGuideMatcher:
                 'title': match['title'],
                 'procedure_id': match['procedure_id'],
                 'similarity_score': match['similarity_score'],
+                'llm_relevance_score': match.get('llm_relevance_score'),
                 'text_preview': match['text'],
                 'candidates': match['all_candidates']
             }
             record['match_status'] = 'matched'
-
-            if self.generate_reasoning and self._reasoning_generator:
-                reasoning = self._reasoning_generator.generate(
-                    repair_summary=repair_summary,
-                    guide_title=match['title'],
-                    guide_text=match.get('text', ''),
-                    fault_codes=fault_codes or None,
-                    symptoms=record.get('symptoms'),
-                )
-                if reasoning:
-                    record['match_reasoning'] = reasoning
-                else:
-                    record['match_reasoning'] = None
+            record['match_reasoning'] = match.get("match_reasoning")
         else:
             self.stats['no_match'] += 1
             record['repair_guide'] = None
@@ -341,60 +455,206 @@ class RepairGuideMatcher:
         
         return record
     
-    def process_from_db(self, db_url: str, unmatched_only: bool = True) -> None:
+    def process_from_db(
+        self,
+        db_url: str,
+        unmatched_only: bool = True,
+        dry_run: bool = False,
+        batch_size: int = 200,
+        db_connect_retries: int = 4,
+    ) -> None:
         """
         Load from scraped_records, match each record, UPDATE rows in place with
         matched_guide_id, matched_guide_title, match_reasoning.
         """
         from sqlalchemy import create_engine, text
-        engine = create_engine(db_url)
-        logger.info("Loading records from scraped_records...")
-        with engine.connect() as conn:
-            where = "WHERE repair_summary IS NOT NULL"
-            if unmatched_only:
-                where += " AND matched_guide_id IS NULL"
-            result = conn.execute(
-                text(f"""
-                    SELECT source_url, repair_summary, fault_codes, symptoms
-                    FROM scraped_records {where}
-                """)
-            )
-            columns = result.keys()
-            rows = [dict(zip(columns, row)) for row in result]
-        
-        logger.info(f"Processing {len(rows)} records...")
-        for i, row in enumerate(rows):
-            fault_codes = row.get("fault_codes")
-            if isinstance(fault_codes, str):
+        from sqlalchemy.exc import OperationalError
+
+        # Transient Neon SSL/network failures are common in long-running jobs;
+        # configure sane defaults and retry connection creation at startup.
+        db_connect_retries = max(1, int(db_connect_retries))
+        engine = create_engine(
+            db_url,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            pool_size=2,
+            max_overflow=4,
+            connect_args={"connect_timeout": 20},
+        )
+        batch_size = max(1, batch_size)
+        logger.info("Loading records from scraped_records in batches of %s...", batch_size)
+        if dry_run:
+            logger.info("Dry-run mode enabled: no updates will be written to DB.")
+
+        where = "repair_summary IS NOT NULL AND source_url IS NOT NULL"
+        if unmatched_only:
+            where += " AND matched_guide_id IS NULL"
+
+        def _connect_with_retry():
+            last_error = None
+            for attempt in range(1, db_connect_retries + 1):
                 try:
-                    fault_codes = json.loads(fault_codes) if fault_codes else []
-                except json.JSONDecodeError:
-                    fault_codes = []
-            record = {
-                "source_url": row["source_url"],
-                "repair_summary": row["repair_summary"],
-                "fault_codes": fault_codes if isinstance(fault_codes, list) else [],
-                "symptoms": row.get("symptoms"),
-            }
-            processed = self.process_record(record)
-            match_guide = processed.get("repair_guide")
-            match_reasoning = processed.get("match_reasoning")
-            matched_id = match_guide.get("procedure_id") if match_guide else None
-            matched_title = match_guide.get("title") if match_guide else None
-            reasoning_json = json.dumps(match_reasoning, ensure_ascii=False) if match_reasoning else None
-            with engine.connect() as conn:
-                conn.execute(
-                    text("""
-                        UPDATE scraped_records
-                        SET matched_guide_id = :mid, matched_guide_title = :title,
-                            match_reasoning = CAST(:reasoning AS jsonb)
-                        WHERE source_url = :url
-                    """),
-                    {"mid": matched_id, "title": matched_title, "reasoning": reasoning_json, "url": row["source_url"]}
-                )
-                conn.commit()
-            if (i + 1) % 100 == 0:
-                logger.info(f"Processed {i + 1}/{len(rows)} records...")
+                    if attempt > 1:
+                        logger.info("Retrying DB connection... attempt %s/%s", attempt, db_connect_retries)
+                    return engine.connect()
+                except OperationalError as exc:
+                    last_error = exc
+                    if attempt >= db_connect_retries:
+                        break
+                    delay = min(2 ** (attempt - 1), 8)
+                    logger.warning(
+                        "DB connection attempt %s/%s failed: %s. Retrying in %.1fs",
+                        attempt,
+                        db_connect_retries,
+                        exc,
+                        delay,
+                    )
+                    time.sleep(delay)
+            raise last_error
+
+        total_processed = 0
+        batch_number = 0
+        cursor_value = None
+
+        try:
+            with _connect_with_retry() as conn:
+                while True:
+                    batch_number += 1
+                    cursor_clause = ""
+                    params = {"batch_size": batch_size}
+                    if cursor_value is not None:
+                        cursor_clause = " AND source_url > :cursor"
+                        params["cursor"] = cursor_value
+
+                    query = f"""
+                        SELECT source_url, repair_summary, fault_codes, symptoms
+                        FROM scraped_records
+                        WHERE {where}{cursor_clause}
+                        ORDER BY source_url
+                        LIMIT :batch_size
+                    """
+                    query_start = time.perf_counter()
+                    logger.info(
+                        "Running DB batch query #%s (source_url > %r, limit=%s)...",
+                        batch_number,
+                        cursor_value,
+                        batch_size,
+                    )
+                    result = conn.execute(text(query), params)
+                    columns = result.keys()
+                    rows = [dict(zip(columns, row)) for row in result]
+                    query_elapsed = time.perf_counter() - query_start
+                    if self.verbose:
+                        logger.info(
+                            "DB batch query #%s returned %s rows in %.2fs",
+                            batch_number,
+                            len(rows),
+                            query_elapsed,
+                        )
+                    elif query_elapsed >= 2.0:
+                        logger.info(
+                            "DB batch query #%s returned %s rows in %.2fs",
+                            batch_number,
+                            len(rows),
+                            query_elapsed,
+                        )
+
+                    if not rows:
+                        if self.verbose:
+                            logger.info(
+                                "No rows returned for batch query window (cursor=%s). Finishing.",
+                                cursor_value,
+                            )
+                        break
+
+                    logger.info(
+                        "Processing batch %s with %s records... (cursor=%s)",
+                        batch_number,
+                        len(rows),
+                        cursor_value,
+                    )
+                    batch_started_at = time.perf_counter()
+
+                    updates = []
+                    for row_idx, row in enumerate(rows, start=1):
+                        row_source_url = row["source_url"]
+                        cursor_value = row_source_url
+                        fault_codes = row.get("fault_codes")
+                        if isinstance(fault_codes, str):
+                            try:
+                                fault_codes = json.loads(fault_codes) if fault_codes else []
+                            except json.JSONDecodeError:
+                                fault_codes = []
+                        record = {
+                            "source_url": row_source_url,
+                            "repair_summary": row["repair_summary"],
+                            "fault_codes": fault_codes if isinstance(fault_codes, list) else [],
+                            "symptoms": row.get("symptoms"),
+                        }
+                        if row_idx == 1:
+                            logger.info(
+                                "First row received in batch %s: source_url=%r",
+                                batch_number,
+                                row_source_url,
+                            )
+                        if self.verbose and (row_idx == 1 or row_idx % self.log_every == 0):
+                            logger.info(
+                                "Processing row %s/%s in batch %s",
+                                row_idx,
+                                len(rows),
+                                batch_number,
+                            )
+                        processed = self.process_record(record)
+                        match_guide = processed.get("repair_guide")
+                        match_reasoning = processed.get("match_reasoning")
+                        matched_id = match_guide.get("procedure_id") if match_guide else None
+                        matched_title = match_guide.get("title") if match_guide else None
+                        reasoning_json = json.dumps(match_reasoning, ensure_ascii=False) if match_reasoning else None
+                        total_processed += 1
+                        updates.append(
+                            {
+                                "mid": matched_id,
+                                "title": matched_title,
+                                "reasoning": reasoning_json,
+                                "url": row_source_url,
+                            }
+                        )
+                        if total_processed % self.log_every == 0:
+                            logger.info(
+                                "Processed %s rows... current cursor=%s",
+                                total_processed,
+                                cursor_value,
+                            )
+
+                    if not dry_run:
+                        with engine.begin() as tx:
+                            tx.execute(
+                                text("""
+                                    UPDATE scraped_records
+                                    SET matched_guide_id = :mid, matched_guide_title = :title,
+                                        match_reasoning = CAST(:reasoning AS jsonb)
+                                    WHERE source_url = :url
+                                """),
+                                updates,
+                            )
+                    if self.verbose:
+                        logger.info("Wrote batch %s updates.", batch_number)
+
+                    batch_elapsed = time.perf_counter() - batch_started_at
+                    logger.info(
+                        "Batch %s committed in %.2fs (records=%s).",
+                        batch_number,
+                        batch_elapsed,
+                        len(updates),
+                    )
+
+                    if (total_processed % 1000) == 0:
+                        logger.info(f"Processed {total_processed} records...")
+        except OperationalError as exc:
+            logger.error("Failed to connect to PostgreSQL/Neon after retries: %s", exc)
+            raise
+        if dry_run:
+            logger.info("Dry-run complete. No rows were updated.")
         logger.info(f"Completed. Matched {self.stats['matched']}/{self.stats['total_processed']} records.")
     
     def process_file(self, input_path: Path, output_path: Path) -> None:
@@ -480,6 +740,13 @@ class RepairGuideMatcher:
         logger.info(f"  High confidence (>=0.75): {self.stats['high_confidence']}")
         logger.info(f"  Medium confidence (0.60-0.75): {self.stats['medium_confidence']}")
         logger.info(f"  Low confidence (<0.60): {self.stats['low_confidence']}")
+        if self.stats.get('llm_gating_enabled'):
+            logger.info("")
+            logger.info("LLM gating:")
+            logger.info(f"  Gated candidates evaluated: {self.stats['llm_gating_enabled']}")
+            logger.info(f"  Gating passed: {self.stats['llm_gating_passed']}")
+            logger.info(f"  Gating rejected: {self.stats['llm_gating_rejected']}")
+            logger.info(f"  LLM evaluation failures: {self.stats['llm_gating_failures']}")
         
         if self.stats['similarity_scores']:
             scores = self.stats['similarity_scores']
@@ -539,6 +806,39 @@ def main():
         action='store_true',
         help='Process all records (default: only unmatched, i.e. matched_guide_id IS NULL)'
     )
+    parser.add_argument(
+        '--llm-gating',
+        action='store_true',
+        help='Enable LLM relevance gating before persisting matched_guide_id.'
+    )
+    parser.add_argument(
+        '--llm-min-confidence',
+        type=float,
+        default=0.7,
+        help='Minimum LLM relevance score required when --llm-gating is set.'
+    )
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Run matching and print stats without writing matched_guide_* columns.'
+    )
+    parser.add_argument(
+        '--batch-size',
+        type=int,
+        default=200,
+        help='Process records in DB batches instead of loading all at once (default: 200).'
+    )
+    parser.add_argument(
+        '--log-every',
+        type=int,
+        default=25,
+        help='Log progress every N processed rows (default: 25).'
+    )
+    parser.add_argument(
+        '--match-verbose',
+        action='store_true',
+        help='Enable detailed per-row matching logs (encoding, search, LLM gating, etc.).'
+    )
 
     args = parser.parse_args()
 
@@ -551,13 +851,22 @@ def main():
         min_similarity=args.min_similarity,
         top_k=args.top_k,
         generate_reasoning=args.generate_reasoning,
+        llm_gating=args.llm_gating,
+        llm_min_confidence=args.llm_min_confidence,
+        log_every=args.log_every,
+        verbose=args.match_verbose,
     )
 
     if use_db:
         if not db_url or not db_url.startswith("postgresql"):
             logger.error("DATABASE_URL required for DB mode. Set in .env or export.")
             sys.exit(1)
-        matcher.process_from_db(db_url, unmatched_only=not args.all)
+        matcher.process_from_db(
+            db_url,
+            unmatched_only=not args.all,
+            dry_run=args.dry_run,
+            batch_size=args.batch_size,
+        )
         matcher.print_statistics()
     elif args.input is not None and args.output is not None:
         logger.warning("JSONL input/output is deprecated. Use DB mode (set DATABASE_URL) for DB-first workflow.")
