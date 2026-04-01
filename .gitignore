@@ -34,6 +34,9 @@ ENV/
 *~
 .cursor/
 
+# Pi editor extensions — local-only; not part of MIST
+.pi/
+
 # Environment variables
 .env
 .env.local
@@ -70,3 +73,19 @@ htmlcov/
 data/bmwfault_cookies.txt
 data/bmwfault_debug_*.html
 data/forum_pcodes.json
+
+# Indexing checkpoints / local run artifacts
+data/qwen3_indexing_checkpoint*.json
+
+# Terraform
+terraform/.terraform/
+terraform/terraform.tfvars
+terraform/*.auto.tfvars
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/tfplan
+terraform/crash.log
+terraform/crash.*.log
+
+# Kubernetes local overrides (never commit real Secret data)
+k8s/secrets.local.yaml
