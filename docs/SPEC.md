@@ -17,6 +17,7 @@ Concise, path-grounded description of the codebase. For narrative architecture, 
 | Layer | Technology | Anchors in repo |
 |-------|------------|-----------------|
 | Runtime | Python ≥3.12 | `pyproject.toml` (`requires-python`) |
+| Lint / git hooks | Ruff + Lefthook (optional dev extra) | `pyproject.toml` (`[tool.ruff]`, `dev` extra), `lefthook.yml` |
 | Web API | FastAPI, Uvicorn | `src/api/server.py` |
 | CLI | Typer | `src/cli/main.py`, `src/commands/` |
 | Config | YAML | `config/*.yaml`, `src/paths.py` (`Paths`) |

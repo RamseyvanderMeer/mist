@@ -38,13 +38,25 @@ PYTHONPATH=/workspace python -m pytest tests/ --ignore=tests/e2e -q
 - There are ~10 pre-existing test failures in `test_configs.py`, `test_session_manager.py`, `test_retrieval.py`, and `test_prompt_templates.py` — these are bugs in existing code, not environment issues.
 - Model-dependent tests (e.g., `test_embeddings.py`, `test_embedding_trainer.py`, `test_reranker.py`) may take a long time as they download HuggingFace models on first run.
 
-### Running lint
+### Git hooks (Lefthook)
 
-No linting config is checked in. `ruff` is installed in the venv:
+After installing dev tools, register hooks once per clone:
 
 ```bash
-ruff check src/ --select E,F
+pip install -e ".[dev]"
+lefthook install
 ```
+
+`pre-commit` runs **Ruff** on **staged** `*.py` files (see `lefthook.yml` and `[tool.ruff]` in `pyproject.toml`). To skip hooks for a single commit: `LEFTHOOK=0 git commit ...`. To run the same checks manually: `lefthook run pre-commit`.
+
+### Running lint
+
+```bash
+ruff check src/ tests/
+ruff format --check src/ tests/   # optional; many files may still need formatting
+```
+
+Rules are defined in `pyproject.toml` (`E` + `F`, with `E501` line-length ignored for now).
 
 ### CLI commands
 

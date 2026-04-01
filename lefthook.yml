@@ -1,0 +1,15 @@
+# Lefthook: https://lefthook.dev/
+# Install once per clone: pip install -e ".[dev]" && lefthook install
+# Skip all hooks: LEFTHOOK=0 git commit ...
+# Run manually: lefthook run pre-commit
+
+pre-commit:
+  parallel: true
+  commands:
+    ruff-check:
+      glob: "*.py"
+      exclude:
+        - "**/._*"
+        - ".venv/**"
+        - ".pi/**"
+      run: ruff check {staged_files}

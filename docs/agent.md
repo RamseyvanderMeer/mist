@@ -6,7 +6,7 @@
 
 | Need | Doc |
 |------|-----|
-| Cursor/IDE setup, run, test | [AGENTS.md](../AGENTS.md) |
+| Cursor/IDE setup, run, test, lint hooks | [AGENTS.md](../AGENTS.md) (`lefthook.yml`, `pip install -e ".[dev]"`) |
 | **Repo spec (paths, flows, stack) — read first for code work** | [SPEC.md](SPEC.md) |
 | **AI placement, safety, conventions** | [REPO_RULES_FOR_AI.md](REPO_RULES_FOR_AI.md) |
 | Project overview & setup | [README.md](../README.md) |

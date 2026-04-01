@@ -14,6 +14,10 @@ license = { text = "Proprietary" }
 scraper = [
     "scrapy>=2.11.0",
 ]
+dev = [
+    "lefthook>=1.10.0",
+    "ruff>=0.9.0",
+]
 
 [project.scripts]
 mist-cli = "src.cli.main:app"
@@ -21,3 +25,28 @@ mist-cli = "src.cli.main:app"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*", "scrapers*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = [
+    ".venv",
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    ".pi",
+    "node_modules",
+    "build",
+    "dist",
+    "**/._*",
+    "tests/e2e",
+]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+# Line length is enforced gradually; staged-file checks still catch real bugs (F*, most E*).
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"

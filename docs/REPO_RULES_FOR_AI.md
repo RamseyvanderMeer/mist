@@ -55,6 +55,7 @@ Read this **together with** [SPEC.md](SPEC.md), [agent.md](agent.md), and [ARCHI
 - Run **unit/integration** tests with `PYTHONPATH` set to repo root (see [AGENTS.md](../AGENTS.md)).
 - Skip **`tests/e2e`** in unattended/cloud runs unless explicitly requested.
 - If you change retrieval, schemas, or RAG flow, consider **updating or adding** tests under `tests/` that mirror similar components.
+- **Pre-commit:** with `pip install -e ".[dev]"` and `lefthook install`, staged Python files are checked with **Ruff** (`lefthook.yml`). Fix reported issues before committing (or set `LEFTHOOK=0` only when intentional).
 
 ---
 

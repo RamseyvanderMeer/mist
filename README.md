@@ -39,6 +39,13 @@ MIST combines:
    pip install -e .  # Editable install: enables `mist-cli` and importable packages
    ```
 
+   Optional — **lint + git hooks** (Ruff + Lefthook):
+
+   ```bash
+   pip install -e ".[dev]"
+   lefthook install
+   ```
+
 4. **Set up environment variables**
    
    Create a `.env` file in the project root (if `.env.example` exists, copy it):
