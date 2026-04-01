@@ -306,3 +306,38 @@ class PromptTemplates:
         variables = {"symptom": symptom}
         user_prompt = self._substitute_template(user_template, variables)
         return {"system": system_prompt, "user": user_prompt}
+
+    def get_symptom_clarification_prompt(
+        self,
+        symptom_description: str
+    ) -> Optional[Dict[str, str]]:
+        """
+        Get symptom clarification prompt for generating clarifying questions.
+
+        Used when the user provides a symptom description without fault codes.
+        Returns None if template not configured.
+
+        Args:
+            symptom_description: User's symptom description
+
+        Returns:
+            Dictionary with "system" and "user" keys, or None if not configured
+        """
+        if "symptom_clarification" not in self._templates:
+            return None
+        
+        template = self._templates["symptom_clarification"]
+        if not isinstance(template, dict) or "system" not in template or "user_template" not in template:
+            return None
+        
+        system_prompt = template["system"]
+        user_template = template["user_template"]
+        variables = {"symptom_description": symptom_description}
+        
+        try:
+            user_prompt = self._substitute_template(user_template, variables)
+        except ValueError as e:
+            logger.warning(f"Failed to substitute symptom clarification template: {e}")
+            return None
+        
+        return {"system": system_prompt, "user": user_prompt}

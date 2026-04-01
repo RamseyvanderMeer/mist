@@ -300,6 +300,7 @@ class LLMProviderFactory:
             LLMProvider instance
         """
         provider_name = config.get("primary", "openai")
+        logger.info(f"Trying primary LLM provider: {provider_name}")
         
         # Try primary provider
         try:
@@ -317,9 +318,12 @@ class LLMProviderFactory:
                 return OpenSourceClient(config.get("open_source", {}))
         except Exception as e:
             logger.error(f"Failed to initialize {provider_name}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
         
         # Try fallback providers
         fallbacks = config.get("fallback", [])
+        logger.info(f"Trying fallback providers: {fallbacks}")
         for fallback_name in fallbacks:
             try:
                 if fallback_name == "openai":

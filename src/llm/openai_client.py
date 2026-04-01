@@ -25,7 +25,12 @@ class OpenAIClient(LLMProvider):
         if not api_key:
             raise ValueError("OpenAI API key not found")
         
-        self.client = OpenAI(api_key=api_key)
+        # Support custom base_url (e.g., for Nebius API)
+        base_url = config.get("base_url")
+        if base_url:
+            self.client = OpenAI(api_key=api_key, base_url=base_url)
+        else:
+            self.client = OpenAI(api_key=api_key)
         self.model = config.get("model", "gpt-4o")
         self.temperature = config.get("temperature", 0.7)
         self.max_tokens = config.get("max_tokens", 1000)
