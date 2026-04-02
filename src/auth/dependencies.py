@@ -53,6 +53,9 @@ IAP_JWT_HEADER = "X-Goog-Iap-Jwt-Assertion"
 IAP_ISSUER = "https://cloud.google.com/iap"
 IAP_JWKS_URL = "https://www.gstatic.com/iap/verify/public_key-jwk"
 
+# Development mode - skip JWT verification
+DEV_MODE = os.getenv("DEV_MODE", "false").lower() == "true"
+
 # Cache for IAP public keys
 _iap_public_keys = None
 
@@ -196,29 +199,40 @@ async def get_current_user(
     """
     Get current user from IAP JWT token (required).
     Verifies the JWT signature before trusting headers.
+    In DEV_MODE, skips JWT verification and uses headers directly.
     """
-    # First, verify the IAP JWT token
-    try:
-        payload = verify_iap_jwt(request)
-    except HTTPException:
-        raise
-    
-    # Extract email from verified JWT payload
-    email = payload.get("email")
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid JWT: missing email claim",
-        )
-    
-    # Also verify the header matches the JWT (defense in depth)
-    header_email = get_iap_email(request)
-    if header_email and header_email != email.lower():
-        logger.warning(f"JWT email mismatch: JWT={email}, Header={header_email}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email mismatch between JWT and headers",
-        )
+    # Development mode: skip JWT verification
+    if DEV_MODE:
+        logger.warning("DEV_MODE enabled: Skipping JWT verification")
+        email = get_iap_email(request)
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="DEV_MODE: X-Goog-Authenticated-User-Email header required",
+            )
+    else:
+        # Production: verify the IAP JWT token
+        try:
+            payload = verify_iap_jwt(request)
+        except HTTPException:
+            raise
+        
+        # Extract email from verified JWT payload
+        email = payload.get("email")
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid JWT: missing email claim",
+            )
+        
+        # Also verify the header matches the JWT (defense in depth)
+        header_email = get_iap_email(request)
+        if header_email and header_email != email.lower():
+            logger.warning(f"JWT email mismatch: JWT={email}, Header={header_email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email mismatch between JWT and headers",
+            )
     
     user = db.query(User).filter(User.email == email.lower()).first()
     if not user:
