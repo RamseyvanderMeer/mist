@@ -39,4 +39,5 @@ pydantic>=2.0.0
 slowapi>=0.1.9
 redis>=5.0.0
 python-jose[cryptography]>=3.3.0
+pyjwt>=2.8.0
 passlib[bcrypt]>=1.7.4
