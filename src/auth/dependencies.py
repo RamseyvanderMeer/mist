@@ -84,12 +84,19 @@ def verify_iap_jwt(request: Request) -> dict:
     Returns the decoded payload if valid.
     Raises HTTPException if invalid.
     """
+    # Debug: log all headers
+    logger.debug(f"All headers: {dict(request.headers)}")
+    
     jwt_token = request.headers.get(IAP_JWT_HEADER)
     
     if not jwt_token:
+        # Debug: check if header exists with different case
+        for key in request.headers.keys():
+            if "jwt" in key.lower():
+                logger.warning(f"Found JWT-related header: {key} = {request.headers.get(key)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing IAP JWT token. Access denied.",
+            detail=f"Missing IAP JWT token. Access denied. Looking for header: {IAP_JWT_HEADER}",
         )
     
     try:
