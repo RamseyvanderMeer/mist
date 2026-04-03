@@ -49,6 +49,11 @@ variable "service_account_email" {
   default = ""
 }
 
+variable "google_oauth_client_ids" {
+  type    = string
+  default = ""
+}
+
 # Cloud Run service
 resource "google_cloud_run_service" "mist_api" {
   name     = var.service_name
@@ -155,6 +160,10 @@ resource "google_cloud_run_service" "mist_api" {
               key  = "latest"
             }
           }
+        }
+        env {
+          name = "GOOGLE_OAUTH_CLIENT_IDS"
+          value = var.google_oauth_client_ids
         }
         
         # Startup probe

@@ -53,3 +53,9 @@ variable "redis_url" {
   type        = string
   sensitive   = true
 }
+
+variable "google_oauth_client_ids" {
+  description = "Comma-separated list of Google OAuth client IDs for web/mobile app auth"
+  type        = string
+  default     = ""
+}

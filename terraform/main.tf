@@ -79,6 +79,9 @@ module "cloud_run" {
   # Concurrency and scaling
   max_instances = 3
   min_instances = 0  # Scale to 0 when idle (cost savings)
+
+  # Google OAuth for mobile/web app auth
+  google_oauth_client_ids = var.google_oauth_client_ids
   
   depends_on = [module.iam, module.secrets]
 }
