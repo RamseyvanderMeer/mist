@@ -1,5 +1,7 @@
 # MIST Project Restructuring Proposal
 
+> **Doc layout note:** Reference docs now live under `docs/context/` by topic. Historical mentions of paths like `docs/SCRAPER_ARCHITECTURE.md` refer to **`docs/context/scraping/SCRAPER_ARCHITECTURE.md`**.
+
 This document summarizes a full analysis of the MIST project structure and recommends changes for a more cohesive, maintainable layout.
 
 ---

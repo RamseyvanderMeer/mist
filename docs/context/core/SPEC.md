@@ -1,6 +1,6 @@
 # MIST — Repository specification (for humans & AI)
 
-Concise, path-grounded description of the codebase. For narrative architecture, see [ARCHITECTURE.md](ARCHITECTURE.md). For doc index, see [agent.md](agent.md). For behavioral rules in this repo, see [REPO_RULES_FOR_AI.md](REPO_RULES_FOR_AI.md).
+Concise, path-grounded description of the codebase. For narrative architecture, see [ARCHITECTURE.md](ARCHITECTURE.md). For the topic tree, see [../README.md](../README.md). For behavioral rules in this repo, see [REPO_RULES_FOR_AI.md](REPO_RULES_FOR_AI.md).
 
 ---
 
@@ -23,14 +23,14 @@ Concise, path-grounded description of the codebase. For narrative architecture, 
 | Config | YAML | `config/*.yaml`, `src/paths.py` (`Paths`) |
 | Vector DB | ChromaDB (typically Cloud) | `src/retrieval/chroma_store.py`, `config/retrieval_config.yaml` |
 | Embeddings | Multiple encoders (e.g. Qwen3, HF, fault/OBD/multimodal) | `src/embeddings/` |
-| BMW diagnostics | Large local SQLite (ISTA) | `src/database/ista_db.py`, `docs/DATABASE.md` |
+| BMW diagnostics | Large local SQLite (ISTA) | `src/database/ista_db.py`, `docs/context/data/DATABASE.md` |
 | Feedback / sessions (app) | SQLite + SQLAlchemy | `src/feedback/collector.py`, `src/database/schema.py`, `src/database/connection.py` |
 | Users / auth (API) | PostgreSQL + SQLAlchemy models | `src/database/pg_connection.py`, `src/models/__init__.py`, `src/auth/` |
 | Rate limiting | slowapi + Redis (optional; falls back if Redis down) | `src/auth/dependencies.py` |
 | LLMs | OpenAI, Anthropic, Gemini, Ollama, etc. | `src/llm/` |
 | Infra (GCP) | Terraform modules | `terraform/` |
 
-**Import layout:** Run with `PYTHONPATH` pointing at the project root (see [AGENTS.md](../AGENTS.md)).
+**Import layout:** Run with `PYTHONPATH` pointing at the project root (see [AGENTS.md](../../AGENTS.md)).
 
 ---
 
@@ -44,7 +44,7 @@ Concise, path-grounded description of the codebase. For narrative architecture, 
 | `tests/` | Pytest; `e2e/` and some integration tests need network—often skipped in CI/cloud |
 | `scrapers/` | Scrapy projects / spiders for training data |
 | `data/` | Local databases, training artifacts, checkpoints (many files gitignored) |
-| `docs/` | Architecture, DB guides, scraper docs, **this SPEC**, AI-oriented rules |
+| `docs/context/` | Topic-based context: **SPEC** (this file), architecture, DB, scraping, training, deploy — see `docs/context/README.md` |
 | `terraform/` | Cloud Run, secrets, etc. |
 
 **Main entrypoints**
@@ -80,7 +80,7 @@ Concise, path-grounded description of the codebase. For narrative architecture, 
 - **Diagnostic session (in-memory / RAG):** `SessionManager` holds turn state for clarification (`src/retrieval/session_manager.py`).
 - **Feedback session (SQLite):** `FeedbackSession` / `MistFeedback` in `src/database/schema.py`—persistent telemetry for learning and analytics.
 - **User (Postgres):** `User`, `Role`, `RateLimitTier` in `src/models/__init__.py`—identity, RBAC, tiered rate limits for deployed API.
-- **Repair guide:** Identified by ISTA-style IDs; text and metadata live in Chroma (indexed from ISTA/XML pipelines—see indexing scripts and `docs/`).
+- **Repair guide:** Identified by ISTA-style IDs; text and metadata live in Chroma (indexed from ISTA/XML pipelines—see indexing scripts and `docs/context/`).
 
 **Where logic lives**
 
@@ -138,4 +138,4 @@ Concise, path-grounded description of the codebase. For narrative architecture, 
 | **Dual feedback meaning** | “Session” in RAG ≠ row in SQLite feedback DB; link by `session_id` string |
 | **Terraform state** | `terraform/*.tfstate` may contain environment-specific values—treat as sensitive in real deployments |
 
-When architecture, endpoints, env vars, or major modules change, update **this file** and [REPO_RULES_FOR_AI.md](REPO_RULES_FOR_AI.md) alongside [ARCHITECTURE.md](ARCHITECTURE.md).
+When architecture, endpoints, env vars, or major modules change, update **this file** and [REPO_RULES_FOR_AI.md](REPO_RULES_FOR_AI.md) alongside [ARCHITECTURE.md](ARCHITECTURE.md), and add any new doc files under `docs/context/` to [../README.md](../README.md).

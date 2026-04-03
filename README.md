@@ -328,9 +328,12 @@ mist/
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): Architecture and getting started
-- [docs/DATABASE.md](docs/DATABASE.md): BMW ISTA database overview
-- [docs/agent.md](docs/agent.md): Full documentation index for agents
+Topic-based context for humans and AI agents lives under **`docs/context/`**. Start at **[docs/context/README.md](docs/context/README.md)** (navigation tree).
+
+- [docs/context/OVERVIEW.md](docs/context/OVERVIEW.md): One-page condensed spine
+- [docs/context/core/SPEC.md](docs/context/core/SPEC.md): Path-grounded spec and flows
+- [docs/context/core/ARCHITECTURE.md](docs/context/core/ARCHITECTURE.md): Architecture and getting started
+- [docs/context/data/DATABASE.md](docs/context/data/DATABASE.md): BMW ISTA database overview
 
 ## Configuration
 

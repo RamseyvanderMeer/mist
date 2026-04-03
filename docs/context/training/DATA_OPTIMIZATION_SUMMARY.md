@@ -6,7 +6,7 @@ This document summarizes the complete data optimization strategy for improving M
 
 ## Documents & Scripts
 
-1. **[WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md)** – Prompt for web scraping agents
+1. **[WEB_SCRAPING_PROMPT.md](../scraping/WEB_SCRAPING_PROMPT.md)** – Prompt for web scraping agents
 2. **scripts/process_scraped_data.py** – Data processing pipeline
 3. **[TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md)** – Plan to use scraped data (Neon) for training
 
@@ -22,7 +22,7 @@ python scripts/extract_repair_guide_titles.py --format agent
 This creates `data/training/valid_repair_guide_titles.json` with all valid titles from the MIST database.
 
 ### Step 2: Collect Data
-Use the prompt in [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md) with a web scraping agent to collect automotive diagnostic data from:
+Use the prompt in [WEB_SCRAPING_PROMPT.md](../scraping/WEB_SCRAPING_PROMPT.md) with a web scraping agent to collect automotive diagnostic data from:
 - Forums (Reddit, Bimmerforums, etc.)
 - Documentation sites (OBD-Codes.com, AutoZone, etc.)
 - Video content (YouTube, etc.)
@@ -96,14 +96,14 @@ See [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.m
 
 ## Next Steps
 
-1. Start web scraping using [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md)
+1. Start web scraping using [WEB_SCRAPING_PROMPT.md](../scraping/WEB_SCRAPING_PROMPT.md)
 2. Process data with `process_scraped_data.py`
 3. Implement training enhancements per [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md)
 
 ## Files Reference
 
 ### Documentation
-- [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md) – Web scraping instructions
+- [WEB_SCRAPING_PROMPT.md](../scraping/WEB_SCRAPING_PROMPT.md) – Web scraping instructions
 - [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md) – Training pipeline improvements
 
 ### Scripts
@@ -119,5 +119,5 @@ See [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.m
 
 ## Support
 
-- [WEB_SCRAPING_PROMPT.md](WEB_SCRAPING_PROMPT.md) – Data collection guidelines
+- [WEB_SCRAPING_PROMPT.md](../scraping/WEB_SCRAPING_PROMPT.md) – Data collection guidelines
 - [TRAINING_PIPELINE_IMPROVEMENT_PLAN.md](TRAINING_PIPELINE_IMPROVEMENT_PLAN.md) – Training pipeline details

@@ -8,7 +8,7 @@ MIST uses BMW ISTA diagnostic databases to build knowledge graphs and retrieve r
 
 ## Database Files
 
-See [data/databases/README.md](../data/databases/README.md) for detailed information about each database file.
+See [data/databases/README.md](../../../data/databases/README.md) for detailed information about each database file.
 
 ## Access Methods
 

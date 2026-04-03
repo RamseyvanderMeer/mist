@@ -6,7 +6,7 @@ In-depth analysis of the MIST scraper module for design gaps, bugs, and producti
 
 ## 1. Architecture & Design Gaps
 
-### 1.1 Missing Capabilities (per docs/SCRAPER_ARCHITECTURE.md)
+### 1.1 Missing Capabilities (per docs/context/scraping/SCRAPER_ARCHITECTURE.md)
 
 | Capability | Status | Notes |
 |------------|--------|--------|
@@ -109,7 +109,7 @@ In-depth analysis of the MIST scraper module for design gaps, bugs, and producti
 
 ### 4.2 Schema drift
 
-- **MistScrapedItem** and `docs/WEB_SCRAPING_PROMPT.md` are aligned. Optional fields are flexible; adding new optional fields in the item is backward compatible as long as pipelines use `.get()`.
+- **MistScrapedItem** and `docs/context/scraping/WEB_SCRAPING_PROMPT.md` are aligned. Optional fields are flexible; adding new optional fields in the item is backward compatible as long as pipelines use `.get()`.
 
 ---
 
@@ -135,7 +135,7 @@ In-depth analysis of the MIST scraper module for design gaps, bugs, and producti
 | **Observability** | Add structured logging and/or metrics (items scraped/dropped, per spider). Optionally integrate with error tracking. |
 | **Data** | In process_scraped_data, support `repair_summary` when `repair_guide` is missing. Consider PII redaction before writing JSONL. |
 | **Testing** | Add unit tests for extractors and validation; add at least one integration test for doc spider + pipeline + JSONL. |
-| **Docs** | Document ROBOTSTXT_OBEY decision, rate limits, and how to run forum vs doc vs example in README or docs/SCRAPER_ARCHITECTURE.md. |
+| **Docs** | Document ROBOTSTXT_OBEY decision, rate limits, and how to run forum vs doc vs example in README or docs/context/scraping/SCRAPER_ARCHITECTURE.md. |
 
 ---
 

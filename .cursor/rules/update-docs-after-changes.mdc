@@ -1,0 +1,33 @@
+---
+description: Update docs/ after implementing changes to keep information current
+alwaysApply: true
+---
+
+# Update Docs After Implementation
+
+After implementing a feature, fix, or significant change, update the docs so they stay accurate.
+
+## When to Update
+
+- Add or modify API endpoints, CLI commands, or config
+- Change project structure, module layout, or data flow
+- Add or remove environment variables, dependencies, or databases
+- Change scraping, training, or diagnostic pipeline behavior
+
+## Where to Update
+
+- `docs/context/core/SPEC.md` — concise repo spec (paths, flows, stack); keep in sync when architecture or contracts change
+- `docs/context/core/REPO_RULES_FOR_AI.md` — AI placement/safety rules when conventions or high-risk areas change
+- `docs/context/README.md` — topic index when you add or rename files under `docs/context/`
+- `docs/context/core/ARCHITECTURE.md` — system design, components, API surface
+- `docs/context/data/DATABASE.md`, `docs/context/data/ISTA_DATABASE_GUIDE.md` — DB usage and schema
+- `docs/context/scraping/SCRAPER_ARCHITECTURE.md`, `docs/context/scraping/WEB_SCRAPING_PROMPT.md` — scraping behavior
+- Other files under `docs/context/<topic>/` as needed for the change
+- `README.md`, `AGENTS.md` — high-level setup and usage
+
+## Checklist (Post-Implementation)
+
+1. List what changed (APIs, CLI, config, flows).
+2. Identify which docs are affected (use the topic folders above).
+3. Add or edit sections so the docs match the new behavior.
+4. Update `docs/context/README.md` if you added or renamed docs under `docs/context/`.

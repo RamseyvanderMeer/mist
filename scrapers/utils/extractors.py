@@ -1,7 +1,7 @@
 """
 Extraction utilities for automotive diagnostic data from scraped text.
 
-Patterns align with docs/WEB_SCRAPING_PROMPT.md and process_scraped_data.py.
+Patterns align with docs/context/scraping/WEB_SCRAPING_PROMPT.md and process_scraped_data.py.
 """
 import re
 from typing import Any

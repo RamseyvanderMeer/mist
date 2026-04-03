@@ -4,9 +4,9 @@
 
 ### Documentation index
 
-For full project documentation, see [docs/agent.md](docs/agent.md). It indexes all .md files by topic (architecture, databases, scraping, training, etc.) for quick lookup.
+Documentation is organized by **topic under [docs/context/](docs/context/)**. Start at **[docs/context/README.md](docs/context/README.md)** (folder map and “what to open when”).
 
-For **path-grounded architecture and flows** (optimized for AI onboarding), read [docs/SPEC.md](docs/SPEC.md) and [docs/REPO_RULES_FOR_AI.md](docs/REPO_RULES_FOR_AI.md). Cursor loads `.cursor/rules/` including pre/post context gates that reference these files.
+For **path-grounded architecture and flows**, read [docs/context/core/SPEC.md](docs/context/core/SPEC.md) and [docs/context/core/REPO_RULES_FOR_AI.md](docs/context/core/REPO_RULES_FOR_AI.md). Cursor loads `.cursor/rules/` including pre/post context gates that reference these paths.
 
 ### Project overview
 

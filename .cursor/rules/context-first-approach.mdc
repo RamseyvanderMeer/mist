@@ -1,0 +1,51 @@
+---
+description: Gather full context before advising or implementing (topic-based docs under docs/context/)
+alwaysApply: true
+---
+
+# Context-First Approach
+
+Before providing advice or implementing solutions, gather all relevant context first. Do not jump to answers or edits.
+
+## Documentation layout
+
+Project context lives under **`docs/context/`** in **topic folders**. Always start from **`docs/context/README.md`** (navigation), then open **only the folder that matches your task**.
+
+| Topic | Folder | Typical files |
+|--------|--------|----------------|
+| Spec, architecture, AI rules | `docs/context/core/` | SPEC, ARCHITECTURE, REPO_RULES_FOR_AI |
+| ISTA / SQLite / XML library | `docs/context/data/` | DATABASE, ISTA_DATABASE_GUIDE |
+| Vector search, ranking quirks | `docs/context/retrieval/` | RETRIEVAL_MISMATCH_INVESTIGATION |
+| LLM / diagnostic framing | `docs/context/llm/` | mechanic_diagnostic_framework |
+| Scrapy, scraping prompt | `docs/context/scraping/` | SCRAPER_*, WEB_SCRAPING_PROMPT |
+| Training, data optimization | `docs/context/training/` | TRAINING_PIPELINE_*, DATA_OPTIMIZATION_SUMMARY |
+| Deploy, IAP, proxy | `docs/context/deploy/` | IAP_ACCESS, PROXY_API_SETUP |
+| Recent landings on `main` | `docs/context/changelog/` | RECENT_PRS_CONTEXT |
+| Planning / restructuring | `docs/context/planning/` | RESTRUCTURING_PROPOSAL |
+
+For a **one-page** summary before diving in, read **`docs/context/OVERVIEW.md`**.
+
+## Workflow
+
+1. **Read project docs first**  
+   Skim **`docs/context/core/SPEC.md`** for path-grounded entrypoints and data stores. Use **`docs/context/README.md`** to pick topic folders; load only what the task needs (see table above).
+
+2. **Understand the problem**  
+   Search and read relevant code, configs, and existing behavior before proposing changes.
+
+3. **Dive into the implementation when needed**  
+   If the task touches behavior, APIs, or data flow, open and read the actual code: trace call paths, inspect module structure, and understand how components interact. Do not rely on docs or assumptions alone—verify against the real implementation.
+
+4. **Form a plan**  
+   Summarize what you understand and the approach you’ll take.
+
+5. **Advise or implement only after**  
+   Provide advice or make edits only when context is sufficiently gathered.
+
+## Anti-patterns
+
+- Suggesting edits before reading the relevant docs
+- Implementing fixes without understanding existing architecture
+- Making changes based on partial context or assumptions
+- Relying on docs or surface-level understanding when the task requires tracing actual code paths and implementation details
+- Loading every file under `docs/context/` when one topic folder would suffice

@@ -47,4 +47,4 @@ The CSV contains the following columns:
 
 ### Usage
 
-This file is referenced by the web scraping prompt (`docs/WEB_SCRAPING_PROMPT.md`) for matching scraped repair descriptions to valid MIST repair guide titles.
+This file is referenced by the web scraping prompt (`docs/context/scraping/WEB_SCRAPING_PROMPT.md`) for matching scraped repair descriptions to valid MIST repair guide titles.

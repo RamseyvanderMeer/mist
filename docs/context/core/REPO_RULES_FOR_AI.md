@@ -1,6 +1,6 @@
 # Repository rules for AI assistants (MIST)
 
-Read this **together with** [SPEC.md](SPEC.md), [agent.md](agent.md), and [ARCHITECTURE.md](ARCHITECTURE.md). Cursor also loads `.cursor/rules/*.mdc` (context-first, pre/post gates, update-docs).
+Read this **together with** [SPEC.md](SPEC.md), [../README.md](../README.md) (topic index), and [ARCHITECTURE.md](ARCHITECTURE.md). Cursor also loads `.cursor/rules/*.mdc` (context-first, pre/post gates, update-docs).
 
 ---
 
@@ -52,7 +52,7 @@ Read this **together with** [SPEC.md](SPEC.md), [agent.md](agent.md), and [ARCHI
 
 ## 5. Testing
 
-- Run **unit/integration** tests with `PYTHONPATH` set to repo root (see [AGENTS.md](../AGENTS.md)).
+- Run **unit/integration** tests with `PYTHONPATH` set to repo root (see [AGENTS.md](../../AGENTS.md)).
 - Skip **`tests/e2e`** in unattended/cloud runs unless explicitly requested.
 - If you change retrieval, schemas, or RAG flow, consider **updating or adding** tests under `tests/` that mirror similar components.
 - **Pre-commit:** with `pip install -e ".[dev]"` and `lefthook install`, staged Python files are checked with **Ruff** (`lefthook.yml`). Fix reported issues before committing (or set `LEFTHOOK=0` only when intentional).
@@ -72,9 +72,9 @@ Read this **together with** [SPEC.md](SPEC.md), [agent.md](agent.md), and [ARCHI
 
 ## 7. When to update documentation
 
-- After substantive edits, apply the **post-agent checklist** in `.cursor/rules/post-agent-context.mdc` and [update-docs-after-changes.mdc](../.cursor/rules/update-docs-after-changes.mdc).
+- After substantive edits, apply the **post-agent checklist** in `.cursor/rules/post-agent-context.mdc` and [update-docs-after-changes.mdc](../../../.cursor/rules/update-docs-after-changes.mdc).
 - If you change **routes, env vars, module layout, or pipeline stages**, update **[SPEC.md](SPEC.md)** and relevant sections of **[ARCHITECTURE.md](ARCHITECTURE.md)**.
-- If you add new **doc files**, link them from **[agent.md](agent.md)**.
+- If you add new **doc files**, link them from **[docs/context/README.md](../README.md)**.
 
 ---
 

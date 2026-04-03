@@ -65,7 +65,7 @@ Some ISTA procedures have `TITLE_ENGB = "-"` or empty. ChromaDB stores this as-i
    uses a fast path (`to_regclass`) to skip migration DDL when `indexing_work`
    already exists, so runs with repeated `--seed-only` no longer spend time
    re-running table/index DDL checks each invocation.
-8. **Docs** – Add this investigation doc and link from `docs/agent.md`.
+8. **Docs** – Add this investigation doc and link from `docs/context/README.md`.
 9. **Chroma predicate edge case fixed** – `src/retrieval/chroma_store.py`
    now avoids single-item `$or` clauses for list predicates, fixing
    `Expected where value for $and or $or to be a list with at least two where expressions`

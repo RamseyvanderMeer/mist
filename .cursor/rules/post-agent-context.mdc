@@ -1,0 +1,29 @@
+---
+description: After implementing — check whether SPEC and docs drifted from the code
+alwaysApply: true
+---
+
+# Post-agent context gate
+
+Use this **after** you finish implementing, refactoring, or fixing behavior (before ending the turn).
+
+## Did anything move or change?
+
+If **yes** to any below, update docs in the same change (or immediately follow up):
+
+| Change type | Update |
+|-------------|--------|
+| New/changed HTTP routes, schemas, auth behavior | `docs/context/core/SPEC.md`, `docs/context/core/ARCHITECTURE.md`, `src/api/` references |
+| New env vars or config keys | `README.md` / `AGENTS.md`, `docs/context/core/SPEC.md`, relevant `config/*.yaml` comments if used |
+| New/changed CLI commands | `docs/context/core/SPEC.md`, `docs/context/core/ARCHITECTURE.md`, `AGENTS.md` if user-facing |
+| New packages under `src/` or renamed entrypoints | `docs/context/core/SPEC.md`, `docs/context/core/REPO_RULES_FOR_AI.md` file-placement table |
+| Retrieval / RAG pipeline stages | `docs/context/core/SPEC.md`, `docs/context/core/ARCHITECTURE.md` |
+| New doc file under `docs/context/` | **`docs/context/README.md`** topic table and folder list |
+
+## Cross-check
+
+1. Re-read the sections of **`docs/context/core/SPEC.md`** you would rely on as a new agent — are paths and flows still true?
+2. If you changed **where AI should put code**, update **`docs/context/core/REPO_RULES_FOR_AI.md`** placement table.
+3. Follow **[update-docs-after-changes.mdc](update-docs-after-changes.mdc)** for README, AGENTS, and topic guides.
+
+If **nothing** architecture- or contract-related changed, note that no doc updates are required.

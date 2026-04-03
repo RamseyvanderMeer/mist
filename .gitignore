@@ -32,7 +32,10 @@ ENV/
 *.swp
 *.swo
 *~
-.cursor/
+# Cursor: keep shared rules; ignore other local IDE state
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 
 # Pi editor extensions — local-only; not part of MIST
 .pi/

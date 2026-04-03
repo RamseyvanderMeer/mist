@@ -1,0 +1,22 @@
+---
+description: Before substantive work — load repo spec and rules so context matches the codebase
+alwaysApply: true
+---
+
+# Pre-agent context gate
+
+Use this **before** planning or implementing non-trivial changes (anything that touches APIs, auth, retrieval, DBs, config, CLI, or Terraform).
+
+## Checklist
+
+1. **Skim** `docs/context/core/SPEC.md` for entrypoints, data stores, and flow.
+2. **Open** `docs/context/README.md` and load topic docs from the matching folder under `docs/context/` (data, retrieval, scraping, deploy, etc.).
+3. **Read relevant sections** of `docs/context/core/REPO_RULES_FOR_AI.md` (placement, testing, safety).
+
+For a fast orientation, you may read `docs/context/OVERVIEW.md` first.
+
+If the task is trivial (typo, single-line fix in an isolated file), you may skip SPEC but should still verify behavior in code.
+
+## Do not
+
+- Invent modules, routes, or env vars not present in the repo without adding them and updating `docs/context/core/SPEC.md`, `docs/context/core/ARCHITECTURE.md`, and `README.md` as needed.
