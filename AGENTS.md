@@ -28,6 +28,10 @@ PYTHONPATH=/workspace uvicorn src.api.server:app --host 0.0.0.0 --port 8000
 
 The `PYTHONPATH=/workspace` prefix is required for module imports to resolve correctly.
 
+### Expo client (`apps/mist-expo`)
+
+Cross-platform UI (web, iOS, Android) with Tamagui. From `apps/mist-expo`: copy `.env.example` to `.env`, run `npm install --legacy-peer-deps`, then `npm run start`. Auth headers must match the FastAPI/IAP rules documented in `apps/mist-expo/AUTH.md`.
+
 ### Running tests
 
 ```bash

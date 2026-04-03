@@ -40,4 +40,5 @@ slowapi>=0.1.9
 redis>=5.0.0
 python-jose[cryptography]>=3.3.0
 pyjwt>=2.8.0
+google-auth>=2.29.0  # Google Sign-In ID token verification (mobile / SPA)
 passlib[bcrypt]>=1.7.4

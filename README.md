@@ -319,6 +319,7 @@ mist/
 │   ├── feedback/     # Feedback system
 │   ├── learning/     # Self-improvement
 │   └── api/          # FastAPI server
+├── apps/mist-expo/   # Expo + Tamagui client (web, iOS, Android) — see apps/mist-expo/README.md
 ├── config/           # YAML configuration files
 ├── scripts/          # Utility scripts
 ├── data/             # Databases, vector store, checkpoints

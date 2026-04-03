@@ -46,11 +46,13 @@ Concise, path-grounded description of the codebase. For narrative architecture, 
 | `data/` | Local databases, training artifacts, checkpoints (many files gitignored) |
 | `docs/context/` | Topic-based context: **SPEC** (this file), architecture, DB, scraping, training, deploy — see `docs/context/README.md` |
 | `terraform/` | Cloud Run, secrets, etc. |
+| `apps/mist-expo/` | Expo (web + native) technician UI: sign-in/register, home, diagnosis workflow (query → clarify → feedback); Tamagui theme, Expo Router, TanStack Query → FastAPI (`apps/mist-expo/README.md`, `apps/mist-expo/AUTH.md`) |
 
 **Main entrypoints**
 
 - HTTP: `uvicorn src.api.server:app` (see README / AGENTS)
 - CLI: `mist-cli` from editable install (`pyproject.toml` → `src.cli.main:app`)
+- Client app: `apps/mist-expo/` — `npm install --legacy-peer-deps` and `npm run start` from that directory
 
 ---
 
@@ -109,8 +111,8 @@ Concise, path-grounded description of the codebase. For narrative architecture, 
 
 ## 7. Cross-cutting concerns
 
-- **Configuration:** YAML under `config/`; paths via `src/paths.py`. Env vars for secrets and overrides (API keys, `CHROMA_DB_*`, `DATABASE_URL`, `REDIS_URL`, `RATE_LIMIT_IP_FALLBACK`, `ISTA_DB_PATH`, etc.).
-- **Auth (deployed):** Google IAP headers (`X-Goog-Authenticated-User-*`) + user rows in Postgres; **`/query` and `/clarify`** use **slowapi** with a dynamic limit from the user’s `RateLimitTier` (sync DB lookup by rate-limit key in `tier_limit_for_ratelimit_key`, `src/auth/dependencies.py`). Requests without an IAP email fall back to an IP bucket; override with **`RATE_LIMIT_IP_FALLBACK`** (default `1000/minute` for local/tests).
+- **Configuration:** YAML under `config/`; paths via `src/paths.py`. Env vars for secrets and overrides (API keys, `CHROMA_DB_*`, `DATABASE_URL`, `REDIS_URL`, `RATE_LIMIT_IP_FALLBACK`, `ISTA_DB_PATH`, **`GOOGLE_OAUTH_CLIENT_IDS`** for mobile/web Google Sign-In, etc.).
+- **Auth (deployed):** IAP JWT (`X-Goog-Iap-Jwt-Assertion`) and/or **Google Sign-In** (`Authorization: Bearer` ID token when **`GOOGLE_OAUTH_CLIENT_IDS`** is set — `src/auth/google_oauth.py`); IAP identity headers (`X-Goog-Authenticated-User-*`) + user rows in Postgres; **`/query` and `/clarify`** use **slowapi** with a dynamic limit from the user’s `RateLimitTier` (sync DB lookup by rate-limit key in `tier_limit_for_ratelimit_key`, `src/auth/dependencies.py`). Requests without an IAP email fall back to an IP bucket; override with **`RATE_LIMIT_IP_FALLBACK`** (default `1000/minute` for local/tests).
 - **Security middleware:** `src/api/security.py` (e.g. API keys where configured).
 - **Logging:** Standard `logging` module; prefer module-level `logger = logging.getLogger(__name__)`.
 

@@ -51,15 +51,18 @@ app = FastAPI(
     
     ## Authentication
     
-    This API uses Google Cloud IAP for authentication. All requests must include valid IAP headers.
+    Production uses **Google Cloud IAP** (`X-Goog-Iap-Jwt-Assertion`) and/or **Google Sign-In**
+    (`Authorization: Bearer <Google ID token>`) when `GOOGLE_OAUTH_CLIENT_IDS` is configured.
+    Send `X-Goog-Authenticated-User-Email` matching the token email when using Bearer auth.
     
-    ### Required Headers
-    - `X-Goog-Authenticated-User-Email`: User's email from Google authentication
-    - `X-Goog-Authenticated-User-Id`: User's subject ID from Google authentication
+    ### Headers
+    - `X-Goog-Iap-Jwt-Assertion`: IAP assertion JWT (browser/proxy or advanced clients)
+    - `Authorization: Bearer`: Google OAuth ID token (mobile / SPA) — requires server env `GOOGLE_OAUTH_CLIENT_IDS`
+    - `X-Goog-Authenticated-User-Email` / `X-Goog-Authenticated-User-Id`: identity hints (must match verified token when both are sent)
     
     ### Registration Flow
     1. First-time users must call `POST /auth/register` to create an account
-    2. Subsequent requests use IAP headers for automatic authentication
+    2. Subsequent requests authenticate via IAP JWT or verified Google ID token
     3. New users are assigned the "blocked" tier by default (no API access)
     4. Contact an admin to upgrade your tier
     

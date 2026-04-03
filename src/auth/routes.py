@@ -2,13 +2,20 @@
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.database.pg_connection import get_db
 from src.auth.dependencies import (
-    get_current_user, get_current_user_optional, get_iap_email, 
-    get_iap_subject, require_admin
+    get_current_user,
+    get_iap_email,
+    get_iap_subject,
+    require_admin,
+)
+from src.auth.google_oauth import (
+    get_authorization_bearer,
+    google_oauth_enabled,
+    verify_google_id_token_string,
 )
 from src.models import User, Role, RateLimitTier
 
@@ -69,14 +76,27 @@ async def register_user(
     registration: UserRegistration,
     db: Session = Depends(get_db)
 ):
-    """Register a new user from IAP identity."""
-    email = get_iap_email(request)
-    subject = get_iap_subject(request)
-    
+    """Register a new user from IAP identity or verified Google Sign-In."""
+    email = None
+    subject = None
+    bearer = get_authorization_bearer(request)
+    if bearer and google_oauth_enabled():
+        claims = verify_google_id_token_string(bearer)
+        if claims:
+            email = (claims.get("email") or "").lower() or None
+            sub = claims.get("sub")
+            subject = str(sub) if sub is not None else None
+    if not email:
+        email = get_iap_email(request)
+        subject = get_iap_subject(request)
+
     if not email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="IAP authentication required. No user email found in headers.",
+            detail=(
+                "No identity for registration: use IAP headers or "
+                "Authorization: Bearer <Google ID token> with GOOGLE_OAUTH_CLIENT_IDS configured."
+            ),
         )
     
     # Check if user already exists
@@ -88,7 +108,7 @@ async def register_user(
         )
     
     # Get default tier (blocked/lowest)
-    default_tier = db.query(RateLimitTier).filter(RateLimitTier.is_default == True).first()
+    default_tier = db.query(RateLimitTier).filter(RateLimitTier.is_default.is_(True)).first()
     if not default_tier:
         # Create default blocked tier if not exists
         default_tier = RateLimitTier(
@@ -137,11 +157,24 @@ async def get_me(current_user: User = Depends(get_current_user)):
 async def check_auth(request: Request, db: Session = Depends(get_db)):
     """Check if user is authenticated and registered."""
     email = get_iap_email(request)
+    if google_oauth_enabled():
+        bearer = get_authorization_bearer(request)
+        if bearer:
+            claims = verify_google_id_token_string(bearer)
+            if claims:
+                g_email = (claims.get("email") or "").lower()
+                if email and g_email and email != g_email:
+                    return {
+                        "authenticated": False,
+                        "registered": False,
+                        "message": "Email header does not match Google ID token.",
+                    }
+                email = g_email or email
     if not email:
         return {
             "authenticated": False,
             "registered": False,
-            "message": "Not authenticated via IAP",
+            "message": "Not authenticated (IAP header or Google Bearer token required)",
         }
     
     user = db.query(User).filter(User.email == email).first()

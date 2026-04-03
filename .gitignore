@@ -37,6 +37,9 @@ ENV/
 !.cursor/rules/
 !.cursor/rules/**
 
+# JavaScript (Expo / Node)
+node_modules/
+
 # Pi editor extensions — local-only; not part of MIST
 .pi/
 
