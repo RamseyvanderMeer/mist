@@ -362,14 +362,4 @@ Edit YAML files in `config/`:
 
 [Add license information]
 
-## Contributing
 
-[Add contributing guidelines]
-# Trigger workflow
-# Trigger workflow 2
-# Trigger workflow 3
-# Trigger workflow 4
-# Trigger workflow 5
-# Trigger workflow 6
-# Trigger Workload Identity test
-# Trigger final test
