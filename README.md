@@ -2,6 +2,8 @@
 
 AI-powered automotive diagnostic system that maps fault codes and live OBD data to precise repair guide recommendations.
 
+Demo: [mist-expo.vercel.app/sign-in](https://mist-expo.vercel.app/sign-in)
+
 ## Overview
 
 MIST combines:
@@ -361,5 +363,4 @@ Edit YAML files in `config/`:
 ## License
 
 [Add license information]
-
 
