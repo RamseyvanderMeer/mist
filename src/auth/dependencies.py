@@ -278,8 +278,8 @@ async def get_current_user(
             detail="Account is suspended. Contact support.",
         )
     
-    # Check tier - blocked users (0 requests) cannot use API
-    if user.tier and user.tier.requests_per_minute == 0:
+    # Explicitly blocked users cannot use the API
+    if user.tier and user.tier.requests_per_minute == 0 and user.tier.requests_per_hour == 0 and user.tier.requests_per_day == 0:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Your account tier does not have API access. Please upgrade your plan.",
@@ -314,7 +314,7 @@ require_user = require_roles(["user", "admin"])
 def get_tier_rate_limit(user: User) -> str:
     """Get rate limit string for user's tier."""
     if not user.tier:
-        return "0/minute"  # Blocked by default
+        return "1/day"  # Any authenticated user gets a minimal default allowance
     
     rpm = user.tier.requests_per_minute
     rph = user.tier.requests_per_hour

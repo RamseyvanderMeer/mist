@@ -107,16 +107,17 @@ async def register_user(
             detail="User already registered.",
         )
     
-    # Get default tier (blocked/lowest)
+    # Get default tier (signed-in users get 1 request/day)
     default_tier = db.query(RateLimitTier).filter(RateLimitTier.is_default.is_(True)).first()
     if not default_tier:
-        # Create default blocked tier if not exists
+        default_tier = db.query(RateLimitTier).filter(RateLimitTier.name == "free").first()
+    if not default_tier:
         default_tier = RateLimitTier(
-            name="blocked",
+            name="free",
             requests_per_minute=0,
             requests_per_hour=0,
-            requests_per_day=0,
-            description="Blocked tier - no API access",
+            requests_per_day=1,
+            description="Default signed-in tier - 1 API request per day",
             is_default=True,
         )
         db.add(default_tier)
