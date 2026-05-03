@@ -35,11 +35,30 @@ limiter = auth_limiter
 
 def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Custom handler for rate limit exceeded."""
+    limit = None
+    reset_hint = None
+
+    detail = getattr(exc, "detail", None)
+    if isinstance(detail, str):
+        limit = detail
+        if "/day" in detail:
+            reset_hint = "Try again tomorrow."
+        elif "/hour" in detail:
+            reset_hint = "Try again later this hour."
+        elif "/minute" in detail:
+            reset_hint = "Try again in a minute."
+
+    message = f"You have hit your rate limit{f' of {limit}' if limit else ''}."
+    if reset_hint:
+        message = f"{message} {reset_hint}"
+
     return JSONResponse(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         content={
-            "detail": "Rate limit exceeded. Please upgrade your plan or try again later.",
-            "retry_after": exc.detail if hasattr(exc, 'detail') else None
+            "detail": message,
+            "code": "RATE_LIMIT_EXCEEDED",
+            "limit": limit,
+            "retry_after": detail if detail is not None else None,
         }
     )
 

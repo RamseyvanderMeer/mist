@@ -1,7 +1,14 @@
 export function parseApiError(body: unknown, fallback = 'Request failed'): string {
   if (body && typeof body === 'object' && 'detail' in body) {
-    const d = (body as { detail: unknown }).detail;
-    if (typeof d === 'string') return d;
+    const obj = body as { detail: unknown; code?: unknown; limit?: unknown };
+    const d = obj.detail;
+    if (typeof d === 'string') {
+      if (obj.code === 'RATE_LIMIT_EXCEEDED') {
+        const limit = typeof obj.limit === 'string' && obj.limit ? obj.limit : null;
+        return limit ? `You have hit your rate limit of ${limit}.` : d;
+      }
+      return d;
+    }
     if (Array.isArray(d)) {
       return d
         .map((item: unknown) => {
