@@ -20,6 +20,8 @@ export type MistCredentialSnapshot = {
   /** Used with DEV_MODE and must match Google / IAP token email in production. */
   iapEmail: string | null;
   iapSubject: string | null;
+  /** Guest mode uses server-issued HttpOnly cookie. */
+  guestMode: boolean;
   /** When server has `API_KEYS` set. */
   apiKey: string | null;
 };

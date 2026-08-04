@@ -7,6 +7,15 @@ export type AuthCheckResponse =
   | {
       authenticated: false;
       registered: false;
+      guest?: false;
+      message: string;
+    }
+  | {
+      authenticated: false;
+      registered: false;
+      guest: true;
+      guest_id: string;
+      limit: string;
       message: string;
     }
   | {
@@ -20,6 +29,15 @@ export type AuthCheckResponse =
       registered: true;
       user: Record<string, unknown>;
     };
+
+export type GuestSessionResponse = {
+  authenticated: false;
+  registered: false;
+  guest: true;
+  guest_id: string;
+  limit: string;
+  message: string;
+};
 
 export type UserMe = {
   id: string;

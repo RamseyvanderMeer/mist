@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useMistAuth } from '../src/auth/AuthContext';
 import {
   hasSignInCredentials,
+  isGuestSession,
   isRegisteredSession,
   useSession,
 } from '../src/auth/SessionContext';
@@ -20,7 +21,7 @@ export default function Index() {
     );
   }
 
-  if (!hasSignInCredentials(creds)) {
+  if (!hasSignInCredentials(creds) && !creds.guestMode) {
     return <Redirect href="/sign-in" />;
   }
 
@@ -32,7 +33,7 @@ export default function Index() {
     );
   }
 
-  if (isRegisteredSession(check)) {
+  if (isRegisteredSession(check) || isGuestSession(check)) {
     return <Redirect href="/home" />;
   }
 

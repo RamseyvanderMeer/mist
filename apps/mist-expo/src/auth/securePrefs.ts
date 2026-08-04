@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   googleIdToken: 'mist_google_id_token',
   iapEmail: 'mist_iap_email',
   iapSubject: 'mist_iap_subject',
+  guestMode: 'mist_guest_mode',
 } as const;
 
 async function setWeb(key: string, value: string | null) {

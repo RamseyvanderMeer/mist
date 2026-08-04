@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -8,12 +8,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import { apiAuthRegister } from '../src/api/mistApi';
+import { apiAuthRegister, apiStartGuestSession } from '../src/api/mistApi';
 import { getMistApiBaseUrl } from '../src/api/mistClient';
 import {
   Body,
   Card,
-  Field,
   GhostButton,
   PrimaryButton,
   Screen,
@@ -22,9 +21,9 @@ import {
 } from '../src/components/ui';
 import { useMistAuth } from '../src/auth/AuthContext';
 import { emailFromIdToken } from '../src/auth/jwtPayload';
-import { hasSignInCredentials, isRegisteredSession, useSession } from '../src/auth/SessionContext';
+import { hasSignInCredentials, isGuestSession, isRegisteredSession, useSession } from '../src/auth/SessionContext';
 import { useGoogleAuthRequest, isGoogleSignInConfigured } from '../src/auth/useGoogleSignIn';
-import { colors, font, space } from '../src/theme/tokens';
+import { colors, font, radius, space } from '../src/theme/tokens';
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -33,6 +32,7 @@ export default function SignInScreen() {
     setGoogleIdToken,
     setIapEmail,
     setIapSubject,
+    setGuestMode,
     clearCredentials,
     getAuthHeaders,
     creds,
@@ -41,25 +41,24 @@ export default function SignInScreen() {
   const { signIn: googleSignIn, ready: googleReady, configured: googleConfigured } =
     useGoogleAuthRequest();
 
-  const [email, setEmail] = useState(creds.iapEmail || '');
-  const [jwt, setJwt] = useState('');
-  const [subject, setSubject] = useState(creds.iapSubject || '');
   const [displayName, setDisplayName] = useState('');
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
-    if (!hasSignInCredentials(creds)) return;
-    if (isRegisteredSession(check)) {
+    if (isRegisteredSession(check) || isGuestSession(check)) {
       router.replace('/home');
     }
-  }, [creds, check, router]);
+  }, [check, router]);
+
+  const subtitle = useMemo(() => {
+    return 'Search BMW repair guides with Google sign-in or try guest mode for quick public debugging.';
+  }, []);
 
   const onGoogle = async () => {
     setLocalError(null);
     if (!isGoogleSignInConfigured()) {
-      setLocalError('Add Google OAuth client IDs to .env (see .env.example).');
+      setLocalError('Google sign-in is not configured for this deployment.');
       return;
     }
     setBusy(true);
@@ -69,6 +68,7 @@ export default function SignInScreen() {
         setLocalError(result.error);
         return;
       }
+      await setGuestMode(false);
       await setIapJwt(null);
       await setGoogleIdToken(result.idToken);
       const em = emailFromIdToken(result.idToken);
@@ -81,21 +81,17 @@ export default function SignInScreen() {
     }
   };
 
-  const onContinue = async () => {
+  const onGuest = async () => {
     setLocalError(null);
-    if (!email.trim() && !jwt.trim()) {
-      setLocalError('Use Sign in with Google, or enter email (dev) / IAP JWT (advanced).');
-      return;
-    }
     setBusy(true);
     try {
-      await setGoogleIdToken(null);
-      await setIapJwt(jwt.trim() || null);
-      await setIapEmail(email.trim() || null);
-      await setIapSubject(subject.trim() || null);
+      await clearCredentials();
+      await apiStartGuestSession();
+      await setGuestMode(true);
       await refreshSession();
+      router.replace('/home');
     } catch (e) {
-      setLocalError(e instanceof Error ? e.message : 'Sign-in failed');
+      setLocalError(e instanceof Error ? e.message : 'Failed to start guest mode');
     } finally {
       setBusy(false);
     }
@@ -118,120 +114,61 @@ export default function SignInScreen() {
   const onSignOut = async () => {
     await clearCredentials();
     await refreshSession();
-    setEmail('');
-    setJwt('');
-    setSubject('');
   };
 
-  const needsRegister =
-    check && check.authenticated && !check.registered && 'email' in check;
+  const needsRegister = check && check.authenticated && !check.registered && 'email' in check;
 
   return (
     <Screen scroll>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
-        <View style={styles.header}>
-          <Text style={styles.logo}>MIST</Text>
-          <Text style={styles.tagline}>BMW diagnostic guide search</Text>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+        <View style={styles.hero}>
+          <View style={styles.badge}><Text style={styles.badgeText}>MIST</Text></View>
+          <Title>Fix the issue faster</Title>
+          <Text style={styles.tagline}>{subtitle}</Text>
+          <Text style={styles.endpoint}>API · {getMistApiBaseUrl()}</Text>
         </View>
 
-        <Card>
-          <Title>Sign in</Title>
-          <Body muted>
-            API: {getMistApiBaseUrl()}
-            {'\n'}
-            Use your Google work account when the API has{' '}
-            <Text style={styles.mono}>GOOGLE_OAUTH_CLIENT_IDS</Text> set. Dev servers can use email
-            only with <Text style={styles.mono}>DEV_MODE=true</Text>.
-          </Body>
-        </Card>
-
-        {googleConfigured ? (
-          <Card>
-            <Subtitle>Recommended</Subtitle>
+        <Card style={styles.primaryCard}>
+          <Subtitle>Get started</Subtitle>
+          <Body muted>Choose the fastest way in. Guest mode gives you 3 debugging requests per day in this browser.</Body>
+          <View style={styles.ctaStack}>
             <PrimaryButton
               title="Continue with Google"
               onPress={onGoogle}
               loading={busy}
-              disabled={busy || !googleReady}
+              disabled={busy || !googleConfigured || !googleReady}
             />
-            {!googleReady ? (
-              <Body muted>Preparing Google sign-in…</Body>
-            ) : (
-              <Body muted>Opens the Google account picker; no JWT paste required.</Body>
-            )}
-          </Card>
-        ) : (
-          <Card style={{ borderColor: colors.warning }}>
-            <Subtitle>Google sign-in disabled</Subtitle>
-            <Body muted>
-              Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (and iOS/Android client IDs for native) in{' '}
-              <Text style={styles.mono}>.env</Text>, and add the same client ID(s) to the API env{' '}
-              <Text style={styles.mono}>GOOGLE_OAUTH_CLIENT_IDS</Text>.
-            </Body>
-          </Card>
-        )}
-
-        <Card>
-          <Subtitle>Manual sign-in</Subtitle>
-          <Body muted>For local dev (email) or IAP JWT from your ops team.</Body>
-          <Field
-            label="Work email"
-            placeholder="you@shop.com"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <PrimaryButton title="Continue with email / dev" onPress={onContinue} loading={busy} disabled={busy} />
+            <Pressable onPress={onGuest} disabled={busy} style={({ pressed }) => [styles.guestBtn, pressed && { opacity: 0.9 }]}>
+              <Text style={styles.guestBtnTitle}>Continue as guest</Text>
+              <Text style={styles.guestBtnBody}>3 debugging requests per day · no account needed</Text>
+            </Pressable>
+          </View>
+          {!googleConfigured ? (
+            <Body muted>Google sign-in is unavailable on this deployment, but guest mode still works.</Body>
+          ) : null}
         </Card>
 
-        <Pressable onPress={() => setShowAdvanced((s) => !s)} style={styles.advancedToggle}>
-          <Text style={styles.advancedToggleText}>{showAdvanced ? '▼' : '▶'} Advanced (IAP JWT)</Text>
-        </Pressable>
-
-        {showAdvanced ? (
-          <Card>
-            <Field
-              label="IAP assertion JWT"
-              placeholder="Paste only if required by your deployment"
-              autoCapitalize="none"
-              value={jwt}
-              onChangeText={setJwt}
-              multiline
-              style={styles.multiline}
-            />
-            <Field
-              label="Subject ID (optional)"
-              placeholder="accounts.google.com:…"
-              autoCapitalize="none"
-              value={subject}
-              onChangeText={setSubject}
-            />
-            <PrimaryButton title="Save advanced credentials" onPress={onContinue} loading={busy} disabled={busy} />
-          </Card>
-        ) : null}
-
-        {hasSignInCredentials(creds) ? (
-          <GhostButton title="Clear saved session" onPress={onSignOut} danger />
-        ) : null}
+        <Card>
+          <Subtitle>How it works</Subtitle>
+          <View style={styles.featureList}>
+            <View style={styles.featureItem}><Text style={styles.featureDot}>1</Text><Text style={styles.featureText}>Paste fault codes or describe the symptom</Text></View>
+            <View style={styles.featureItem}><Text style={styles.featureDot}>2</Text><Text style={styles.featureText}>Answer clarifying questions if needed</Text></View>
+            <View style={styles.featureItem}><Text style={styles.featureDot}>3</Text><Text style={styles.featureText}>Review ranked repair guides and next steps</Text></View>
+          </View>
+        </Card>
 
         {needsRegister ? (
           <Card>
-            <Subtitle>Complete registration</Subtitle>
-            <Body muted>
-              You are signed in as {(check as { email: string }).email} but have no MIST account yet.
-            </Body>
-            <Field
-              label="Display name (optional)"
-              placeholder="Service bay name"
-              value={displayName}
-              onChangeText={setDisplayName}
-            />
-            <PrimaryButton title="Register account" onPress={onRegister} loading={busy} disabled={busy} />
+            <Subtitle>Finish setup</Subtitle>
+            <Body muted>You are signed in as {(check as { email: string }).email} but do not have a MIST account yet.</Body>
+            <Pressable onPress={onRegister} disabled={busy} style={({ pressed }) => [styles.registerBtn, pressed && { opacity: 0.9 }]}>
+              <Text style={styles.registerBtnText}>Create my MIST account</Text>
+            </Pressable>
           </Card>
+        ) : null}
+
+        {(hasSignInCredentials(creds) || creds.guestMode) ? (
+          <GhostButton title="Clear session" onPress={onSignOut} danger />
         ) : null}
 
         {(localError || lastError) && (
@@ -248,20 +185,54 @@ export default function SignInScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { marginBottom: space.lg, marginTop: space.sm },
-  logo: {
-    color: colors.accent,
-    fontSize: 36,
+  hero: { marginBottom: space.lg, marginTop: space.sm, gap: space.sm },
+  badge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.bgElevated,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  badgeText: { color: colors.accent, fontWeight: '800', letterSpacing: 2 },
+  tagline: { color: colors.textMuted, fontSize: font.body, lineHeight: 22 },
+  endpoint: { color: colors.textMuted, fontSize: font.caption },
+  primaryCard: {
+    borderColor: '#3a465c',
+    backgroundColor: '#131b29',
+  },
+  ctaStack: { gap: space.sm, marginTop: space.sm, marginBottom: space.sm },
+  guestBtn: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  guestBtnTitle: { color: colors.text, fontSize: font.headline, fontWeight: '700' },
+  guestBtnBody: { color: colors.textMuted, fontSize: font.caption, marginTop: 4 },
+  featureList: { gap: space.sm },
+  featureItem: { flexDirection: 'row', gap: space.sm, alignItems: 'flex-start' },
+  featureDot: {
+    color: '#0a0c10',
+    backgroundColor: colors.accent,
+    width: 22,
+    height: 22,
+    textAlign: 'center',
+    lineHeight: 22,
+    borderRadius: 11,
     fontWeight: '800',
-    letterSpacing: 4,
+    overflow: 'hidden',
   },
-  tagline: {
-    color: colors.textMuted,
-    fontSize: font.body,
-    marginTop: space.xs,
+  featureText: { color: colors.text, fontSize: font.body, flex: 1, lineHeight: 22 },
+  registerBtn: {
+    marginTop: space.sm,
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    alignItems: 'center',
   },
-  mono: { fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }) },
-  multiline: { minHeight: 72, textAlignVertical: 'top' },
-  advancedToggle: { paddingVertical: space.sm, marginBottom: space.xs },
-  advancedToggleText: { color: colors.textMuted, fontSize: font.caption },
+  registerBtnText: { color: '#0a0c10', fontWeight: '800', fontSize: font.body },
 });

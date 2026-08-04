@@ -17,6 +17,10 @@ export function hasSignInCredentials(creds: MistCredentialSnapshot): boolean {
   );
 }
 
+export function isGuestSession(check: AuthCheckResponse | null): boolean {
+  return Boolean(check && 'guest' in check && check.guest);
+}
+
 type SessionValue = {
   check: AuthCheckResponse | null;
   me: import('../api/types').UserMe | null;
@@ -35,7 +39,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [lastError, setLastError] = useState<string | null>(null);
 
   const refreshSession = useCallback(async () => {
-    if (!hasSignInCredentials(creds)) {
+    if (!hasSignInCredentials(creds) && !creds.guestMode) {
       setCheck(null);
       setMe(null);
       setLastError(null);
@@ -70,7 +74,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     refreshSession();
-  }, [ready, creds.iapEmail, creds.iapJwt, creds.googleIdToken, creds.iapSubject, refreshSession]);
+  }, [ready, creds.iapEmail, creds.iapJwt, creds.googleIdToken, creds.iapSubject, creds.guestMode, refreshSession]);
 
   const value = useMemo(
     () => ({

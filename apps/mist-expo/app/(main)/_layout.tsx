@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs, Redirect } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useMistAuth } from '../../src/auth/AuthContext';
-import { hasSignInCredentials, isRegisteredSession, useSession } from '../../src/auth/SessionContext';
+import { hasSignInCredentials, isGuestSession, isRegisteredSession, useSession } from '../../src/auth/SessionContext';
 import { colors } from '../../src/theme/tokens';
 
 export default function MainTabsLayout() {
@@ -17,7 +17,7 @@ export default function MainTabsLayout() {
     );
   }
 
-  if (!hasSignInCredentials(creds) || !isRegisteredSession(check)) {
+  if ((!hasSignInCredentials(creds) && !creds.guestMode) || (!isRegisteredSession(check) && !isGuestSession(check))) {
     return <Redirect href="/sign-in" />;
   }
 

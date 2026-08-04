@@ -1,15 +1,17 @@
 """User registration and management endpoints."""
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.database.pg_connection import get_db
 from src.auth.dependencies import (
+    GUEST_REQUESTS_PER_DAY,
     get_current_user,
     get_iap_email,
     get_iap_subject,
+    get_or_create_guest_id,
     require_admin,
 )
 from src.auth.google_oauth import (
@@ -68,6 +70,19 @@ class TierResponse(BaseModel):
     requests_per_hour: int
     requests_per_day: int
     description: Optional[str]
+
+
+@router.post("/guest")
+async def start_guest_session(request: Request, response: Response):
+    guest_id = get_or_create_guest_id(request, response)
+    return {
+        "authenticated": False,
+        "registered": False,
+        "guest": True,
+        "guest_id": guest_id,
+        "message": f"Guest mode enabled. You can run up to {GUEST_REQUESTS_PER_DAY} debugging requests per day.",
+        "limit": f"{GUEST_REQUESTS_PER_DAY}/day",
+    }
 
 
 @router.post("/register")
@@ -155,8 +170,8 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/check")
-async def check_auth(request: Request, db: Session = Depends(get_db)):
-    """Check if user is authenticated and registered."""
+async def check_auth(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Check if user is authenticated, registered, or using guest mode."""
     email = get_iap_email(request)
     if google_oauth_enabled():
         bearer = get_authorization_bearer(request)
@@ -172,10 +187,14 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
                     }
                 email = g_email or email
     if not email:
+        guest_id = get_or_create_guest_id(request, response)
         return {
             "authenticated": False,
             "registered": False,
-            "message": "Not authenticated (IAP header or Google Bearer token required)",
+            "guest": True,
+            "guest_id": guest_id,
+            "message": f"Guest mode enabled. You can run up to {GUEST_REQUESTS_PER_DAY} debugging requests per day.",
+            "limit": f"{GUEST_REQUESTS_PER_DAY}/day",
         }
     
     user = db.query(User).filter(User.email == email).first()

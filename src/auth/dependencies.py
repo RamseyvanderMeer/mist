@@ -1,8 +1,11 @@
 """Authentication dependencies and middleware for FastAPI."""
+import hashlib
+import hmac
 import logging
 import os
+import secrets
 from typing import Optional, List
-from fastapi import Request, HTTPException, Depends, status
+from fastapi import Request, HTTPException, Depends, status, Response
 from sqlalchemy.orm import Session, joinedload
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -34,17 +37,26 @@ except Exception as e:
 
 # Initialize rate limiter with custom key function
 def get_rate_limit_key(request: Request) -> str:
-    """Generate rate limit key based on user identity."""
-    # Try to get user email from IAP header
-    email = request.headers.get("X-Goog-Authenticated-User-Email", "")
+    """Generate rate limit key based on user or guest identity."""
+    bearer = get_authorization_bearer(request)
+    if bearer and google_oauth_enabled():
+        claims = verify_google_id_token_string(bearer)
+        if claims:
+            email = (claims.get("email") or "").lower().strip()
+            if email:
+                return f"ratelimit:{email}"
+
+    email = request.headers.get(IAP_EMAIL_HEADER, "")
     if email:
-        # Remove 'accounts.google.com:' prefix if present
         if ":" in email:
             email = email.split(":")[-1]
         email = email.lower().strip()
         return f"ratelimit:{email}"
+
+    guest_id = verify_guest_token(request.cookies.get(GUEST_COOKIE_NAME))
+    if guest_id:
+        return f"guest:{guest_id}"
     
-    # Fallback to IP address
     return f"ratelimit:ip:{get_remote_address(request)}"
 
 limiter = Limiter(key_func=get_rate_limit_key)
@@ -60,6 +72,11 @@ IAP_JWKS_URL = "https://www.gstatic.com/iap/verify/public_key-jwk"
 
 # Development mode - skip JWT verification
 DEV_MODE = os.getenv("DEV_MODE", "false").lower() == "true"
+
+GUEST_COOKIE_NAME = os.getenv("GUEST_COOKIE_NAME", "mist_guest")
+GUEST_COOKIE_MAX_AGE = int(os.getenv("GUEST_COOKIE_MAX_AGE", str(60 * 60 * 24 * 365)))
+GUEST_COOKIE_SECRET = os.getenv("GUEST_COOKIE_SECRET", "")
+GUEST_REQUESTS_PER_DAY = int(os.getenv("GUEST_REQUESTS_PER_DAY", "3"))
 
 # Cache for IAP public keys
 _iap_public_keys = None
@@ -182,6 +199,59 @@ def get_iap_subject(request: Request) -> Optional[str]:
         subject = subject.split(":")[-1]
     
     return subject
+
+
+def _guest_secret_bytes() -> bytes:
+    secret = GUEST_COOKIE_SECRET.strip()
+    if not secret:
+        logger.warning("GUEST_COOKIE_SECRET not set; using volatile process secret for guest cookies")
+        secret = f"volatile-{os.getpid()}"
+    return secret.encode("utf-8")
+
+
+def sign_guest_token(guest_id: str) -> str:
+    sig = hmac.new(_guest_secret_bytes(), guest_id.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{guest_id}.{sig}"
+
+
+def verify_guest_token(token: str | None) -> Optional[str]:
+    if not token or "." not in token:
+        return None
+    guest_id, sig = token.rsplit(".", 1)
+    if not guest_id or not sig:
+        return None
+    expected = hmac.new(_guest_secret_bytes(), guest_id.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        return None
+    return guest_id
+
+
+def issue_guest_cookie(response: Response, guest_id: Optional[str] = None) -> str:
+    guest_id = guest_id or secrets.token_urlsafe(24)
+    token = sign_guest_token(guest_id)
+    response.set_cookie(
+        key=GUEST_COOKIE_NAME,
+        value=token,
+        max_age=GUEST_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+    )
+    return guest_id
+
+
+def get_or_create_guest_id(request: Request, response: Optional[Response] = None) -> str:
+    token = request.cookies.get(GUEST_COOKIE_NAME)
+    guest_id = verify_guest_token(token)
+    if guest_id:
+        return guest_id
+    if response is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Guest session missing. Start a guest session first.",
+        )
+    return issue_guest_cookie(response)
 
 
 async def get_current_user_optional(
@@ -334,12 +404,20 @@ def get_tier_rate_limit(user: User) -> str:
     return ",".join(limits)
 
 
+def get_guest_rate_limit() -> str:
+    return f"{GUEST_REQUESTS_PER_DAY}/day"
+
+
 def tier_limit_for_ratelimit_key(key: str) -> str:
     """
     Dynamic slowapi limit: must accept a parameter named ``key`` (see slowapi LimitGroup).
 
-    ``key`` is the value from ``get_rate_limit_key(request)`` (email- or IP-based).
+    ``key`` is the value from ``get_rate_limit_key(request)`` (email-, guest-, or IP-based).
     """
+    guest_prefix = "guest:"
+    if key.startswith(guest_prefix):
+        return get_guest_rate_limit()
+
     ip_prefix = "ratelimit:ip:"
     if key.startswith(ip_prefix):
         return os.getenv("RATE_LIMIT_IP_FALLBACK", "1000/minute")
@@ -368,6 +446,31 @@ def tier_limit_for_ratelimit_key(key: str) -> str:
         return "0/minute"
 
     return get_tier_rate_limit(user)
+
+
+class GuestIdentity:
+    def __init__(self, guest_id: str):
+        self.id = guest_id
+        self.email = f"guest:{guest_id}"
+        self.display_name = "Guest"
+        self.status = "guest"
+        self.roles = []
+        self.tier = None
+
+
+async def get_current_actor(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    bearer = get_authorization_bearer(request)
+    has_google = bool(bearer and google_oauth_enabled())
+    has_iap = bool(request.headers.get(IAP_JWT_HEADER))
+    has_dev_email = bool(DEV_MODE and get_iap_email(request))
+    if has_google or has_iap or has_dev_email:
+        return await get_current_user(request, db)
+    guest_id = get_or_create_guest_id(request, response)
+    return GuestIdentity(guest_id)
 
 
 class RateLimitMiddleware:

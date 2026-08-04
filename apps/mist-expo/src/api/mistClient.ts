@@ -30,5 +30,6 @@ export async function mistFetch(path: string, options: MistFetchOptions = {}): P
   return fetch(`${base}${path.startsWith('/') ? path : `/${path}`}`, {
     ...init,
     headers,
+    credentials: 'include',
   });
 }

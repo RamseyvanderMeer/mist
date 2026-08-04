@@ -14,6 +14,8 @@ from src.feedback.collector import FeedbackCollector
 from src.feedback.analyzer import FeedbackAnalyzer
 from src.api.security import setup_security
 from src.auth.dependencies import (
+    GUEST_REQUESTS_PER_DAY,
+    get_current_actor,
     get_current_user,
     require_admin,
     tier_limit_for_ratelimit_key,
@@ -39,6 +41,8 @@ def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
     reset_hint = None
 
     detail = getattr(exc, "detail", None)
+    if not isinstance(detail, str):
+        detail = getattr(getattr(exc, "limit", None), "limit", None)
     if isinstance(detail, str):
         limit = detail
         if "/day" in detail:
@@ -58,6 +62,7 @@ def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
             "detail": message,
             "code": "RATE_LIMIT_EXCEEDED",
             "limit": limit,
+            "guest_limit": f"{GUEST_REQUESTS_PER_DAY}/day",
             "retry_after": detail if detail is not None else None,
         }
     )
@@ -82,16 +87,16 @@ app = FastAPI(
     ### Registration Flow
     1. First-time users must call `POST /auth/register` to create an account
     2. Subsequent requests authenticate via IAP JWT or verified Google ID token
-    3. New users are assigned the "blocked" tier by default (no API access)
-    4. Contact an admin to upgrade your tier
+    3. Signed-in users get their configured tier; guests can use a limited public flow
+    4. Guest mode is limited to a small number of daily debugging requests
     
     ## Rate Limiting
     
     Rate limits are tier-based:
-    - **blocked**: 0 requests (default for new users)
-    - **free**: 10/min, 100/hour, 500/day
-    - **premium**: 100/min, 1000/hour, 5000/day
-    - **admin**: 1000/min, 10000/hour, 100000/day
+    - **guest**: 3/day shared across query + clarification
+    - **free**: low-volume signed-in usage
+    - **premium**: higher-volume usage
+    - **admin**: high-volume internal usage
     
     ## Key Features
     
@@ -126,12 +131,14 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
 
 # CORS middleware - restrict in production
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+allowed_origins_raw = [x.strip() for x in os.getenv("ALLOWED_ORIGINS", "https://mist-expo.vercel.app,http://localhost:8081").split(",") if x.strip()]
+allow_all_origins = "*" in allowed_origins_raw
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=[] if allow_all_origins else allowed_origins_raw,
+    allow_origin_regex=".*" if allow_all_origins else None,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -253,7 +260,7 @@ async def query(
     request: Request,
     query_request: QueryRequest,
     rag: ConversationalRAG = Depends(get_conversational_rag),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_actor)
 ):
     """
     Query repair guides by fault codes and/or symptom description.
@@ -384,7 +391,7 @@ async def clarify(
     request: Request,
     clarify_request: ClarifyRequest,
     rag: ConversationalRAG = Depends(get_conversational_rag),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_actor)
 ):
     """
     Submit responses to clarification questions from a previous query.

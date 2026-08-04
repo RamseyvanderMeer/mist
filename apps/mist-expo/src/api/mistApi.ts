@@ -2,6 +2,7 @@ import { mistFetch } from './mistClient';
 import { readErrorBody } from './errors';
 import type {
   AuthCheckResponse,
+  GuestSessionResponse,
   HealthResponse,
   QueryResponse,
   UserMe,
@@ -26,6 +27,12 @@ export async function apiAuthMe(getAuthHeaders: AuthHeaderGetter): Promise<UserM
   const res = await mistFetch('/auth/me', { getAuthHeaders });
   if (!res.ok) throw new Error(await readErrorBody(res));
   return res.json() as Promise<UserMe>;
+}
+
+export async function apiStartGuestSession(): Promise<GuestSessionResponse> {
+  const res = await mistFetch('/auth/guest', { method: 'POST', withAuth: false });
+  if (!res.ok) throw new Error(await readErrorBody(res));
+  return res.json() as Promise<GuestSessionResponse>;
 }
 
 export async function apiAuthRegister(

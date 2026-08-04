@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Recommendation } from '../../src/api/types';
 import {
@@ -19,7 +19,8 @@ import {
   Title,
 } from '../../src/components/ui';
 import { useMistAuth } from '../../src/auth/AuthContext';
-import { colors, font, space } from '../../src/theme/tokens';
+import { isGuestSession, useSession } from '../../src/auth/SessionContext';
+import { colors, font, radius, space } from '../../src/theme/tokens';
 
 type Phase = 'input' | 'clarify' | 'results';
 
@@ -32,6 +33,8 @@ function parseFaultCodes(raw: string): string[] {
 
 export default function DiagnoseScreen() {
   const { getAuthHeaders } = useMistAuth();
+  const { check } = useSession();
+  const guest = isGuestSession(check);
 
   const [phase, setPhase] = useState<Phase>('input');
   const [busy, setBusy] = useState(false);
@@ -80,6 +83,10 @@ export default function DiagnoseScreen() {
   }, []);
 
   const stepIndex = phase === 'input' ? 1 : phase === 'clarify' ? 2 : 3;
+  const helperText = useMemo(
+    () => (guest ? 'Guest mode includes 3 debugging requests per day in this browser.' : 'Signed-in mode uses your account rate limits.'),
+    [guest],
+  );
 
   const runQuery = async () => {
     setError(null);
@@ -183,18 +190,20 @@ export default function DiagnoseScreen() {
 
   return (
     <Screen scroll>
-      <StepPill n={stepIndex} total={3} />
+      <View style={styles.topRow}>
+        <StepPill n={stepIndex} total={3} />
+        <View style={styles.modePill}><Text style={styles.modePillText}>{guest ? 'Guest' : 'Signed in'}</Text></View>
+      </View>
       <Title>Diagnosis</Title>
-      <Body muted>
-        Session: {sessionId ? `${sessionId.slice(0, 8)}…` : '—'}
-      </Body>
+      <Body muted>{helperText}</Body>
 
       {phase === 'input' && (
         <View>
-          <Card>
-            <Subtitle>1 · Vehicle & codes</Subtitle>
+          <Card style={styles.primaryCard}>
+            <Subtitle>Describe the issue</Subtitle>
+            <Body muted>Paste one or more fault codes, describe the symptom, then search. Use both for the best results.</Body>
             <Field
-              label="Fault codes (spaces, commas, or lines)"
+              label="Fault codes"
               placeholder="P0301 2A87 29CC"
               value={faultRaw}
               onChangeText={setFaultRaw}
@@ -203,14 +212,20 @@ export default function DiagnoseScreen() {
             />
             <Field
               label="Symptom description"
-              placeholder="Rough idle, MIL on after cold start…"
+              placeholder="Rough idle after cold start, check engine light on…"
               value={description}
               onChangeText={setDescription}
               multiline
               style={styles.multiline}
             />
-            <Field label="Model (optional)" placeholder="F30" value={vehicleModel} onChangeText={setVehicleModel} />
-            <Field label="Year (optional)" placeholder="2018" value={vehicleYear} onChangeText={setVehicleYear} />
+            <View style={styles.twoUp}>
+              <View style={styles.flexOne}>
+                <Field label="Model (optional)" placeholder="F30" value={vehicleModel} onChangeText={setVehicleModel} />
+              </View>
+              <View style={styles.flexOne}>
+                <Field label="Year (optional)" placeholder="2018" value={vehicleYear} onChangeText={setVehicleYear} />
+              </View>
+            </View>
             <Field
               label="OBD snapshot JSON (optional)"
               placeholder="{}"
@@ -226,13 +241,13 @@ export default function DiagnoseScreen() {
 
       {phase === 'clarify' && (
         <Card>
-          <Subtitle>2 · Clarification</Subtitle>
-          <Body muted>The model needs a bit more context. Answer each question below.</Body>
+          <Subtitle>Clarify the problem</Subtitle>
+          <Body muted>The model needs a bit more context before ranking the best repair guides.</Body>
           {questions.map((q, i) => (
             <View key={i} style={styles.qBlock}>
               <Text style={styles.qText}>{q}</Text>
               <Field
-                label={`Your answer ${i + 1}`}
+                label={`Answer ${i + 1}`}
                 value={answers[i] || ''}
                 onChangeText={(t) => {
                   const next = [...answers];
@@ -252,7 +267,7 @@ export default function DiagnoseScreen() {
       {phase === 'results' && (
         <View>
           <Card>
-            <Subtitle>3 · Ranked guides</Subtitle>
+            <Subtitle>Ranked repair guides</Subtitle>
             <Text style={styles.queryText} selectable>
               {queryText}
             </Text>
@@ -265,7 +280,7 @@ export default function DiagnoseScreen() {
               <Pressable
                 key={item.id}
                 onPress={() => setExpandedId(open ? null : item.id)}
-                style={({ pressed }) => [styles.recCard, pressed && { opacity: 0.92 }]}
+                style={({ pressed }) => [styles.recCard, pressed && { opacity: 0.95 }]}
               >
                 <View style={styles.recHeader}>
                   <Text style={styles.recTitle} numberOfLines={open ? undefined : 2}>
@@ -292,7 +307,7 @@ export default function DiagnoseScreen() {
 
           <Card>
             <Subtitle>Feedback</Subtitle>
-            <Body muted>Help MIST learn: rate this session and optionally record the repair outcome.</Body>
+            <Body muted>Rate the result and optionally record whether the repair fixed the issue.</Body>
             <Text style={styles.rateLabel}>Rating {rating ? `${rating} / 5` : '—'}</Text>
             <View style={styles.stars}>
               {[1, 2, 3, 4, 5].map((n) => (
@@ -342,8 +357,8 @@ export default function DiagnoseScreen() {
       )}
 
       {error ? (
-        <Card style={{ borderColor: colors.danger }}>
-          <Text style={{ color: colors.danger }}>{error}</Text>
+        <Card style={styles.errorCard}>
+          <Text style={styles.errorText}>{error}</Text>
         </Card>
       ) : null}
 
@@ -353,8 +368,21 @@ export default function DiagnoseScreen() {
 }
 
 const styles = StyleSheet.create({
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modePill: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  modePillText: { color: colors.textMuted, fontSize: font.caption, fontWeight: '700' },
+  primaryCard: { borderColor: '#3a465c', backgroundColor: '#131b29' },
   multiline: { minHeight: 72, textAlignVertical: 'top' },
-  jsonBox: { minHeight: 100, fontFamily: 'monospace', fontSize: font.caption },
+  jsonBox: { minHeight: 92, fontFamily: 'monospace', fontSize: font.caption },
+  twoUp: { flexDirection: 'row', gap: space.sm },
+  flexOne: { flex: 1 },
   qBlock: { marginBottom: space.md },
   qText: { color: colors.text, fontSize: font.body, marginBottom: space.sm },
   queryText: {
@@ -365,7 +393,7 @@ const styles = StyleSheet.create({
   },
   recCard: {
     backgroundColor: colors.bgCard,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     padding: space.md,
@@ -396,4 +424,6 @@ const styles = StyleSheet.create({
   },
   outcomeDisabled: { opacity: 0.4 },
   outcomeBtnText: { color: colors.text, fontWeight: '600', fontSize: font.caption },
+  errorCard: { borderColor: colors.danger, backgroundColor: '#241518' },
+  errorText: { color: colors.danger, fontSize: font.body },
 });
