@@ -1,0 +1,36 @@
+# Production runtime only for MIST API
+
+# Core
+numpy>=1.24.0
+PyYAML>=6.0
+python-dotenv>=1.0.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
+tenacity>=8.0.0
+
+# Vector store / retrieval runtime
+chromadb>=0.4.0
+pydantic-settings>=2.0.0
+networkx>=3.0
+
+# LLM providers used by API
+openai>=1.0.0
+google-generativeai>=0.3.0
+cohere>=5.0.0
+
+# API
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+slowapi>=0.1.9
+redis>=5.0.0
+python-jose[cryptography]>=3.3.0
+pyjwt>=2.8.0
+google-auth>=2.29.0
+passlib[bcrypt]>=1.7.4
+
+# Note:
+# Do NOT include training/indexing/scraping/browser deps here.
+# Keep those in requirements.txt / requirements-scraper.txt for dev workflows.

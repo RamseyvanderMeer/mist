@@ -15,9 +15,9 @@ vector_store:
 
 # Multi-stage retrieval parameters
 retrieval:
-  initial_k: 100  # Initial candidates from vector search (Stage 1)
-  rerank_k: 50  # Candidates after re-ranking (Stage 2)
-  final_k: 10  # Final number of recommendations returned (Stage 4)
+  initial_k: 20  # Lower-cost public runtime default
+  rerank_k: 10  # Lower-cost public runtime default
+  final_k: 5  # Final number of recommendations returned
   min_similarity: 0.5  # Minimum cosine similarity threshold for initial retrieval (lowered for better recall)
 
 reranking:
@@ -46,5 +46,5 @@ clarification:
   enabled: true  # Enable clarification question generation
   ambiguity_threshold: 0.65  # Top score threshold below which clarification is triggered
   score_variance_threshold: 0.02  # Score variance threshold for ambiguity detection
-  max_questions: 3  # Maximum number of clarification questions per query
-  max_clarifications_per_session: 3  # Maximum clarification rounds per session
+  max_questions: 2  # Lower-cost public runtime default
+  max_clarifications_per_session: 2  # Lower-cost public runtime default
