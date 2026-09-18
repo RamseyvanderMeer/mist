@@ -73,12 +73,12 @@ module "cloud_run" {
   # Service account for minimal permissions
   service_account_email = module.iam.service_account_email
   
-  # Resource limits (2Gi needed for Qwen3 embeddings)
-  memory = "2Gi"
+  # Resource limits for lean public runtime
+  memory = "1Gi"
   cpu    = "1"
   
   # Concurrency and scaling
-  max_instances = 3
+  max_instances = 1
   min_instances = 0  # Scale to 0 when idle (cost savings)
 
   # Google OAuth for mobile/web app auth

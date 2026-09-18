@@ -65,14 +65,15 @@ jobs:
         region: ${{ env.REGION }}
         image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
         flags: |
-          --memory=2Gi
+          --memory=1Gi
           --cpu=1
-          --concurrency=80
-          --max-instances=3
+          --concurrency=20
+          --max-instances=1
           --min-instances=0
           --service-account=mist-api-sa@mist-487607.iam.gserviceaccount.com
-          --set-secrets=DATABASE_URL=mist-database-url:latest,SAMBANOVA_API_KEY=mist-sambanova-api-key:latest,CHROMADB_API_KEY=mist-chromadb-api-key:latest,CHROMADB_TENANT=mist-chromadb-tenant:latest,REDIS_URL=mist-redis-url:latest
-          --timeout=300
+          --set-secrets=DATABASE_URL=mist-database-url:latest,SAMBANOVA_API_KEY=mist-sambanova-api-key:latest,CHROMA_DB_API_KEY=mist-chromadb-api-key:latest,CHROMA_DB_TENANT=mist-chromadb-tenant:latest,REDIS_URL=mist-redis-url:latest,GUEST_COOKIE_SECRET=mist-guest-cookie-secret:latest
+          --set-env-vars=GOOGLE_OAUTH_CLIENT_IDS=33176763769-2fn6gekqn73eqde20ueir1qtd9h4tcah.apps.googleusercontent.com,ALLOWED_ORIGINS=https://mist-expo.vercel.app,http://localhost:8081
+          --timeout=120
 
     - name: Show Output
       run: echo "${{ steps.deploy.outputs.url }}"

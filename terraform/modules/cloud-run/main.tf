@@ -36,7 +36,7 @@ variable "cpu" {
 
 variable "max_instances" {
   type    = number
-  default = 3
+  default = 1
 }
 
 variable "min_instances" {
@@ -66,8 +66,8 @@ resource "google_cloud_run_service" "mist_api" {
   
   template {
     spec {
-      container_concurrency = 80
-      timeout_seconds       = 300
+      container_concurrency = 20
+      timeout_seconds       = 120
       service_account_name  = var.service_account_email
       
       containers {
