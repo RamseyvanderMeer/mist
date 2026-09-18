@@ -59,3 +59,15 @@ variable "google_oauth_client_ids" {
   type        = string
   default     = ""
 }
+
+variable "guest_cookie_secret" {
+  description = "Secret used to sign guest cookies"
+  type        = string
+  sensitive   = true
+}
+
+variable "allowed_origins" {
+  description = "Comma-separated allowed origins for credentialed frontend access"
+  type        = string
+  default     = "https://mist-expo.vercel.app,http://localhost:8081"
+}

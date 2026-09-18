@@ -54,6 +54,11 @@ variable "google_oauth_client_ids" {
   default = ""
 }
 
+variable "allowed_origins" {
+  type    = string
+  default = "https://mist-expo.vercel.app,http://localhost:8081"
+}
+
 # Cloud Run service
 resource "google_cloud_run_service" "mist_api" {
   name     = var.service_name
@@ -164,6 +169,19 @@ resource "google_cloud_run_service" "mist_api" {
         env {
           name = "GOOGLE_OAUTH_CLIENT_IDS"
           value = var.google_oauth_client_ids
+        }
+        env {
+          name = "ALLOWED_ORIGINS"
+          value = var.allowed_origins
+        }
+        env {
+          name = "GUEST_COOKIE_SECRET"
+          value_from {
+            secret_key_ref {
+              name = "mist-guest-cookie-secret"
+              key  = "latest"
+            }
+          }
         }
         
         # Startup probe

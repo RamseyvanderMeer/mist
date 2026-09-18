@@ -43,11 +43,12 @@ module "secrets" {
   source = "./modules/secret-manager"
   
   secrets = {
-    database-url      = var.database_url
-    sambanova-api-key = var.sambanova_api_key
-    chromadb-api-key  = var.chromadb_api_key
-    chromadb-tenant   = var.chromadb_tenant
-    redis-url         = var.redis_url
+    database-url       = var.database_url
+    sambanova-api-key  = var.sambanova_api_key
+    chromadb-api-key   = var.chromadb_api_key
+    chromadb-tenant    = var.chromadb_tenant
+    redis-url          = var.redis_url
+    guest-cookie-secret = var.guest_cookie_secret
   }
   
   service_account_email = module.iam.service_account_email
@@ -82,6 +83,7 @@ module "cloud_run" {
 
   # Google OAuth for mobile/web app auth
   google_oauth_client_ids = var.google_oauth_client_ids
+  allowed_origins         = var.allowed_origins
   
   depends_on = [module.iam, module.secrets]
 }

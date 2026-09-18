@@ -12,8 +12,12 @@ variable "service_account_email" {
 }
 
 # Create secrets in Secret Manager (use non-sensitive keys)
+locals {
+  secret_keys = ["database-url", "sambanova-api-key", "chromadb-api-key", "chromadb-tenant", "redis-url", "guest-cookie-secret"]
+}
+
 resource "google_secret_manager_secret" "secrets" {
-  for_each = toset(["database-url", "sambanova-api-key", "chromadb-api-key", "chromadb-tenant", "redis-url"])
+  for_each = toset(local.secret_keys)
   
   secret_id = "mist-${each.value}"
   
@@ -24,7 +28,7 @@ resource "google_secret_manager_secret" "secrets" {
 
 # Create secret versions
 resource "google_secret_manager_secret_version" "versions" {
-  for_each = toset(["database-url", "sambanova-api-key", "chromadb-api-key", "chromadb-tenant", "redis-url"])
+  for_each = toset(local.secret_keys)
   
   secret      = google_secret_manager_secret.secrets[each.value].id
   secret_data = var.secrets[each.value]
@@ -32,7 +36,7 @@ resource "google_secret_manager_secret_version" "versions" {
 
 # Grant service account access to secrets
 resource "google_secret_manager_secret_iam_member" "secret_access" {
-  for_each = toset(["database-url", "sambanova-api-key", "chromadb-api-key", "chromadb-tenant", "redis-url"])
+  for_each = toset(local.secret_keys)
   
   secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
@@ -42,7 +46,7 @@ resource "google_secret_manager_secret_iam_member" "secret_access" {
 # Output secret references for Cloud Run
 output "secret_refs" {
   value = {
-    for key in ["database-url", "sambanova-api-key", "chromadb-api-key", "chromadb-tenant", "redis-url"] : key => {
+    for key in local.secret_keys : key => {
       secret_name = "mist-${key}"
       version     = "latest"
     }
